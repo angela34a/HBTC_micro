@@ -1,28 +1,49 @@
-
-
+# Objective: combining fragmented data into one metadata
 # each campaign has its dataset, and each of them has 4 sheets
-## combine them
 
-#SPRING XLSX
+
+# Loading in ####
+
+# Spring campaign
+# chemical info
 spring_chem <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx")
+
+# sampling info
 spring_sampl <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
                            sheet = "Sampling Info")
+
+# ATP measurement
 spring_ATP <-  read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
                           sheet = "ATP")
+
+# cell count measurement
 spring_TCC <-  read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
                           sheet = "TCC") 
 
-#FALL XLSX
+
+
+# fall campaign
+# chemical info
 fall_chem <- read_excel("C:/Users/Angela Cukusic//Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx", 
                         sheet = "Chemistry")
+
+# sampling info
 fall_sampl <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx", 
                          sheet = "Sampling Info")
+
+# ATP measurement
 fall_ATP <-   read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx",  
                          sheet = "ATP")
+
+# cell count measurement
 fall_TCC <-   read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx", 
                          sheet = "TCC")
 
-# add this column as a unique identifier, to differentiate spring and fall wells
+
+
+# adding identifier column ####
+
+# unique identifier, to differentiate spring and fall wells with same name
 # add to each sheet in order to combine them in one dataset
 spring_chem$sample_season <- paste(spring_chem$`Sample ID`, "spring", sep = "_")
 spring_sampl$sample_season <- paste(spring_sampl$`Sample ID`, "spring", sep = "_")
@@ -33,6 +54,7 @@ fall_chem$sample_season <- paste(fall_chem$`Sample ID`,  "fall", sep = "_")
 fall_sampl$sample_season <- paste(fall_sampl$`Sample ID`,  "fall", sep = "_")
 fall_ATP$sample_season <- paste(fall_ATP$`Sample ID`, "fall", sep = "_")
 fall_TCC$sample_season <- paste(fall_TCC$`Sample ID`, "fall", sep = "_")
+
 
 
 
