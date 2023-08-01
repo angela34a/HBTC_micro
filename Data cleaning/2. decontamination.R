@@ -1,10 +1,13 @@
-# 2. load asv_table ####
+
+library(decontam)
+
+# 1. load asv_table ####
 asv_table <- read.delim("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/DADA2_counts_as_matrix.tsv", row.names=1)
 names(asv_table)<- sub("^JMF.2207.07.0","JMF-2207-07-0", names(asv_table))
 names(asv_table) <- sub("A", "", names(asv_table))
 
 
-# load taxonomy ####
+# 2. load taxonomy ####
 asv_taxonomy <-
   read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/DADA2_ASVs.rRNA_SSU.SILVA_classified.csv")
 asv_taxonomy <- asv_taxonomy %>% dplyr::select("name", "lca_tax_slv") %>%
@@ -24,41 +27,51 @@ asv_taxonomy[asv_taxonomy == ''] <- NA
 
 
 
-# load the blank_sheet which has info on blank batches
-blanks_df <- read.delim("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/blanks.csv",
-                        header=TRUE, sep = ",")
+# 3. load the main_sheet ####
+# it  has info on blank batches 
+main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/main_sheet.csv")
 
 
-# i have one blank which was not sequenced so i removed the whole batch :(
-## 12 samples - not optimal!
-blanks_all <-  blanks_df %>% filter(batch_name !="Blank_26")
+# i have one blank which was not sequenced so i removed the whole batch 
+## this is 12 samples - not optimal! 
+## Take care when performing the lab work on the next project!
+main_sheet <- main_sheet  %>% filter(batch_name !="Blank_26")
+
 # remove the 12 samples from the asv_table as well
-asv_all <- asv_table[ , which(colnames(asv_table) %in% blanks_all$JMF.sample.ID)]  
+asv_table <- asv_table[ , which(colnames(asv_table) %in% main_sheet$JMF_ID)]  
 
 
 
-# see if all samples match from blank_df to asv_table - are all the JMFs 
-## from the blank table also samples from the asv_table
-blanks_all[which(!  blanks_all$JMF.sample.ID  %in% colnames(asv_all)), ]
-# they dont match (JMF-2207-07-0282 was sequenced but not measured for env. data)
-## remove it
-blanks_all <- blanks_all %>% filter(JMF.sample.ID != "JMF-2207-07-0282") 
+
+# now see if all samples match from main_sheet to asv_table 
+# and are all the main_sheet sequence IDs also samples from the asv_table
+main_sheet[which(!  main_sheet$JMF_ID  %in% colnames(asv_table)), ]
+# they dont match 
+# JMF-2207-07-0282 was accidentally sequenced but not measured for env. data
+# remove it
+main_sheet <- main_sheet %>% filter(JMF_ID != "JMF-2207-07-0282") 
 
 
-# (before using decontam it is important that rows are ordered in 
-## the same order as columns of asv_table!)
-## in our case they are because the JMF.ID goes up by number
 
+
+
+# 4. check order of samples ####
+# before using decontam it is important that rows are ordered in 
+# the same order as columns of asv_table!
+# in our case they are because the JMF.ID goes up by number
+
+
+# 5. decontam ####
 
 # STEP 1: make vector for blanks 
-vector_for_decontam <- print(blanks_all$sample_blank=="blank") 
+vector_for_decontam <- print(main_sheet$Blank_Sample=="Blank") 
 # STEP 2: identify
-contam_df <- isContaminant(t(asv_all), 
+contam_df <- isContaminant(t(asv_table), 
                            neg=vector_for_decontam, 
-                           batch = blanks_all$batch_name)
+                           batch = main_sheet$batch_name)
 
 
-
+# ....
 
 # identified 5763  as contaminants
 table(contam_df$contaminant) # to see how many are contaminants
@@ -88,5 +101,14 @@ new_metadata <- metadata[which(rownames(metadata) %in% colnames(asv_all_no_cont)
 #and that all the samples in asv_table are in the metadata as well
 asv_all_no_cont <- asv_all_no_cont[, which( colnames(asv_all_no_cont)  %in%  rownames(new_metadata))]
 
+
+
+
+
+main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/main_sheet.csv")
+main_sheet$sample_season <- paste(main_sheet$Sample_ID, 
+                                  main_sheet$Season, sep = "_")
+
+master_data <- left_join(main_sheet, fall_data, spring_data, by="sample_season")
 
 rm(blanks_all, blanks_df, contam_asvs, asv_taxonomy, asv_table)
