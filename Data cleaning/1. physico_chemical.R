@@ -101,7 +101,10 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 # should be done after decontamination and blank averaging, so to remove blanks from the main_sheet
 
 
+# but for now just add the identifier column in the dataset
 
-
+main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/main_sheet.csv")
+main_sheet$sample_season <- paste(main_sheet$Sample_ID, 
+                                  main_sheet$Season, sep = "_")
 
 

@@ -1,4 +1,4 @@
-
+# Objective: removing contaminants from the count data (asv_table)
 library(decontam)
 
 # 1. load asv_table ####
@@ -63,52 +63,50 @@ main_sheet <- main_sheet %>% filter(JMF_ID != "JMF-2207-07-0282")
 
 # 5. decontam ####
 
-# STEP 1: make vector for blanks 
+##  STEP 5.1: make vector for blanks ####
 vector_for_decontam <- print(main_sheet$Blank_Sample=="Blank") 
-# STEP 2: identify
+## STEP 5.2: identify  ####
 contam_df <- isContaminant(t(asv_table), 
                            neg=vector_for_decontam, 
                            batch = main_sheet$batch_name)
 
 
-# ....
-
+# to see how many are contaminants
+table(contam_df$contaminant) 
 # identified 5763  as contaminants
-table(contam_df$contaminant) # to see how many are contaminants
+
 # name the contaminants
 contam_asvs <- row.names(contam_df[contam_df$contaminant == TRUE, ])
 contam_asvs <- contam_asvs %>% as.data.frame() 
 # find the taxonomy of the contaminats
-cont_identified <- asv_taxonomy %>% rownames_to_column(".") %>% 
-  left_join (contam_asvs, ., by=".") 
-table(cont_identified$Class) %>% as.data.frame() %>%  arrange(desc(Freq)) %>% head()
+cont_identified <- asv_taxonomy %>% 
+                   rownames_to_column(".") %>% 
+                   left_join (contam_asvs, ., by=".") 
+table(cont_identified$Class) %>% 
+  as.data.frame() %>%  
+  arrange(desc(Freq)) %>% 
+  head()
 # the most frequent contamints are Nanoarchaea
 
 
-# Step 3: remove
+## STEP 5.3: remove ####
 # remove asvs which are contaminants from the asv_table
-asv_all_no_cont <- asv_all[!row.names(asv_all) %in% contam_asvs, ]
+asv_all_no_cont <- asv_table[!row.names(asv_table) %in% contam_asvs$., ]
 # removes blanks samples (JMFs) from the asv_table
 asv_all_no_cont <- asv_all_no_cont[ , !vector_for_decontam]
 # removes contaminants from taxonomy table
-new_taxonomy <- asv_taxonomy[!row.names(asv_taxonomy) %in% contam_asvs, ]
+tax_no_cont <- asv_taxonomy[!row.names(asv_taxonomy) %in% contam_asvs$., ]
 
 
-# Step 4: clean the rest 
-# be sure that metadata has the same samples as the final asv table
-rownames(metadata) <- metadata$JMF.ID
-new_metadata <- metadata[which(rownames(metadata) %in% colnames(asv_all_no_cont) ),]
-#and that all the samples in asv_table are in the metadata as well
-asv_all_no_cont <- asv_all_no_cont[, which( colnames(asv_all_no_cont)  %in%  rownames(new_metadata))]
+# 6. Blank removal ####
+# Remove from the main_sheet sequence codes of blanks
+main_sheet <- main_sheet %>% filter(Blank_Sample != "Blank")
 
 
+rm(contam_df, cont_identified, contam_asvs, asv_taxonomy, asv_table, vector_for_decontam)
+
+# we are now left with count data and taxonomy list without the contaminants
+# in next script we average the replicates
+# and only then have all three datasets clean and ready for analysis
 
 
-
-main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/main_sheet.csv")
-main_sheet$sample_season <- paste(main_sheet$Sample_ID, 
-                                  main_sheet$Season, sep = "_")
-
-master_data <- left_join(main_sheet, fall_data, spring_data, by="sample_season")
-
-rm(blanks_all, blanks_df, contam_asvs, asv_taxonomy, asv_table)
