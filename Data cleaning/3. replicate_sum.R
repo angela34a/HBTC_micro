@@ -1,4 +1,4 @@
-# Objective: averaging the counts from the replicates of one well
+# Objective: summing the counts from the replicates of one well
 # when a well had enough microbial load for more filters replicates were used
 
 
@@ -11,7 +11,7 @@
 
 
 
-# this way becomputationally long, but for now I do not have a more efficient alternative:
+# this may be computationally long, but for now I do not have a more efficient alternative:
 
 
 asv_no_rep <- asv_all_no_cont %>%
@@ -25,8 +25,8 @@ asv_no_rep <- asv_all_no_cont %>%
   dplyr::select("ASV", "abundance", "sample_season") %>%
   # apply function (summary) for each individual ASV per sample_season
   group_by(ASV, sample_season) %>%
-  # find count means of samples of the same well (same sample_season)
-  summarise(abundance = mean(abundance)) %>% 
+  # find count sums of samples of the same well (same sample_season)
+  summarise(abundance = sum(abundance)) %>% 
   ungroup() %>%  
   pivot_wider(names_from = "sample_season", 
               values_from = "abundance") %>% 
@@ -39,10 +39,12 @@ rm(asv_all_no_cont)
 # and that colnames are the real sample names and not sequence codes
 # we can integrate environmental data based on these colnames
 
+# connect spring and fall data based on the column names
+rbind(fall_data, spring_data)
+
 master_data <- colnames(asv_no_rep) %>% as.data.frame() %>% 
                rename("sample_season" = ".") %>% 
-               inner_join(., fall_data, spring_data, 
-               by="sample_season")
+               inner_join(., metadata, by="sample_season")
 
 
 
@@ -51,15 +53,4 @@ master_data <- colnames(asv_no_rep) %>% as.data.frame() %>%
 rm(fall_data, spring_data, main_sheet)
 
 
-# inspect the data to see if everything is fine
-read_data <- asv_no_rep %>% 
-  colSums() %>% # how many reads per sample (find sums per each column)
-  as.data.frame() %>% 
-  rename("reads" = ".") 
-
-summary(read_data)
-sd(read_data$reads)
-# 5245  +- 3037
-
-rm(read_data)
 
