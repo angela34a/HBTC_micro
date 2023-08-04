@@ -24,6 +24,11 @@ spring_TCC <-  read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC
 spring_coord <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
                             sheet = "Coordinates", col_types = c("text", "numeric", "numeric"))
 
+# land use and aquifer info
+spring_land <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
+                            sheet = "Land_Geol")
+
+
 # for spring there is also the heavy metal data and heatsources data
 spring_hts <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
                              sheet = "Heat_sources", col_types = c("text", "text", "text", 
@@ -58,6 +63,10 @@ fall_TCC <-   read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_
 fall_coord <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx", 
                            sheet = "Coordinates", col_types = c("text", "numeric", "numeric"))
 
+# land use and aquifer info
+fall_land <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_autumn.xlsx", 
+                            sheet = "Land_Geol")
+
 
 
 
@@ -69,21 +78,23 @@ fall_coord <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_
 spring_data <- full_join(spring_chem, spring_sampl, by="Sample_ID") %>% 
   full_join(.,spring_ATP, by="Sample_ID")  %>% 
   full_join(.,spring_TCC, by="Sample_ID") %>% 
-  full_join(., spring_coord, by="Sample_ID") 
+  full_join(., spring_coord, by="Sample_ID")  %>% 
+  left_join(., spring_land, by="Sample_ID") 
 
 # to explore specific UHI impact
 spring_data_additional <- spring_data %>% 
   full_join(., spring_hts, by="Sample_ID") %>% 
-  full_join(., spring_metals, by="Sample_ID")
+  full_join(., spring_metals, by="Sample_ID") 
   
 
 fall_data <- full_join(fall_chem, fall_sampl, by="Sample_ID") %>% 
   full_join(.,fall_ATP, by="Sample_ID")  %>% 
   full_join(.,fall_TCC, by="Sample_ID") %>% 
-  full_join(., fall_coord, by="Sample_ID")  
+  full_join(., fall_coord, by="Sample_ID")   %>% 
+  left_join(., fall_land, by="Sample_ID") 
 
 rm(spring_chem, spring_sampl, spring_ATP, spring_TCC, spring_coord, spring_hts, spring_metals,
-   fall_chem, fall_sampl, fall_ATP, fall_TCC, fall_coord)
+   fall_chem, fall_sampl, fall_ATP, fall_TCC, fall_coord, spring_land, fall_land)
 
 
 
@@ -95,7 +106,7 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 
 # combine both in one dataset
 # make sure the columns are the same in both datasets
-rbind(  (  fall_data %>% select(!c("Fe_II", "Land_use" )  )  ), 
+rbind(  (  fall_data %>% select(!"Fe_II"   ), 
        # remove those cols not found in the other dataset   
         (  spring_data %>% select(!c("HCO3", "S")  ) ) 
       )  -> metadata
