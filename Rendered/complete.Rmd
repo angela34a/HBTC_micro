@@ -54,13 +54,23 @@ library(geosphere)    # coordianate plotting
 # Set the ggplot theme 
 theme_set(theme_linedraw())
 ```
-The data has been prepared for analysis with four script in the same repository. The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing. It has, furthermore, been decontaminated by the decontam package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorisation has been added as a variable.
+The data has been prepared for analysis with four script in the same repository. 
+The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing. 
+It has, furthermore, been decontaminated by the decontam package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorisation has been added as a variable.
 
 The final count table and taxonomy table (no contaminat ASVs and no blank samples) and clean metadata info is here loaded in.
 
 ```{r}
+# a) final asv_table
+asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv")
 
+# b) final taxonomy table
+tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv")
+
+# c) final metadata
+metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
 ```
+
 
 ```{r}
 # color palettes
