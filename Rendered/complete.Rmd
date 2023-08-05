@@ -49,10 +49,14 @@ library(ggstatsplot)
 library(mapview)      # coordianate plotting
 library(sf)           # coordianate plotting
 library(geosphere)    # coordianate plotting
+library(afex)         # to run ANOVA
 
 # Set the ggplot theme 
 theme_set(theme_linedraw())
 ```
+
+# load data 
+
 The data has been prepared for analysis with four script in the same repository. 
 The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing. 
 It has, furthermore, been decontaminated by the decontam package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorisation has been added as a variable.
@@ -70,6 +74,7 @@ tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_c
 metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
 ```
 
+The palettes for the temperature categories color scheme (blue to red; cold to warm) and composition (25 colors distinct from one another to differentiate between taxa abundances).
 
 ```{r palette-load}
 # color palettes
@@ -84,7 +89,7 @@ c25 <- c("dodgerblue2", "#E31A1C", "green4" ,  "#6A3D9A",     "skyblue2",
 ```
 
 
-
+# analysis 
 
 ## alpha diversity
 
@@ -92,20 +97,20 @@ c25 <- c("dodgerblue2", "#E31A1C", "green4" ,  "#6A3D9A",     "skyblue2",
 
 ```{r alpha-temp}
 
+# Shannon's index 
 shannondiv <- vegan::diversity(t(asv_table))
+# turning Shannon's index to effective number of species to be more comparable across studies 
 ens <- exp(shannondiv)
 
 p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
   as.data.frame() %>%
   rename("div"= "ens",
 "temp"="as.factor(metadata$category)") %>%
-  filter(div > 0) %>% 
+# plot
   ggplot( aes(x = temp, y = div, fill = temp, color=temp)) +
-  #stat_boxplot(geom ='errorbar') + 
   geom_boxplot(alpha=0.5) +
   scale_fill_manual(values = pal3)+
   scale_color_manual(values = pal3)+
-  theme_bw()+
   theme(legend.position = "none",
         axis.title=element_text(size=14,face="bold"),
         axis.text.y = element_text(size=10,face="bold"),
@@ -118,14 +123,16 @@ p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>%
 p1_en
 
 ```
-testing
-```{r}
 
+
+Testing if the distribution of alpha diversity per temperature categories is significant.
+
+```{r alpha-test}
 
 # since there is only 1 sample in the 20< i must remove it before testing
-data_for_alpha <- cbind( as.data.frame(ens), new_metadata$category) %>% 
-  filter(new_metadata$category != "20<") %>% 
-  rename("category" = "new_metadata$category")
+data_for_alpha <- cbind( as.data.frame(ens), metadata$category) %>% 
+  filter(metadata$category != "20<") %>% 
+  rename("category" = "metadata$category")
 
 
 # perform ANOVA?
@@ -161,13 +168,13 @@ kruskal.test (ens ~ category, data= data_for_alpha)
 
 ```
 
-```{r}
+Or, visually - with a new package:
+```{r ggplot-stat}
 
-library(afex) ## to run ANOVA
-
-alph <- cbind(as.data.frame(ens), as.factor(new_metadata$category)) %>% 
+alph <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
                 as.data.frame() %>%
-                rename("div"= "ens","temp"="as.factor(new_metadata$category)") 
+                rename("div"= "ens",
+"temp"="as.factor(metadata$category)") 
 
 ggbetweenstats( data  = alph, x = temp, y = div,
                 type = "np",
@@ -188,8 +195,8 @@ ggbetweenstats( data  = alph, x = temp, y = div,
 ```
 
 
-linear trend
-```{r}
+To see if there is a linear trend that gets obscured by the grouping:
+```{r alpha-lin}
 p1_en_li <- cbind(as.data.frame(ens), new_metadata$Temp) %>% 
   as.data.frame() %>%
   rename("div"= "ens","temp"="new_metadata$Temp") %>%
