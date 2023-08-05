@@ -211,11 +211,13 @@ p1_en_li
 ```
 
 ### spatial distribution
-```{r}
+Plot the diversity index on an interactive map.
+
+```{r alpha-spatial}
 
 # add mapview to change X and Y to standard crs
-new_metadata2 <- new_metadata %>% 
-  cbind(new_metadata, as.data.frame(ens)) %>% 
+new_metadata2 <- metadata %>% 
+  cbind(., as.data.frame(ens)) %>% 
   dplyr::select("ens", "X", "Y") %>% drop_na() %>% 
   mutate( ens_cat = cut(ens, b=6) )  
 
@@ -228,15 +230,18 @@ mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
 
 
 ### aquifer distributuion
-```{r}
-#|warning: false
+We chose allt the aquifers that had more than 5 sampling points.
 
-# ANY AQUIFER THAT HAS MORE THAN 5 POINTS
-cbind(new_metadata, ens ) %>% 
+```{r alpha-aquifer}
+
+cbind( metadata, ens ) %>% 
+# filter out >5 aquifers
   dplyr::filter(! Geol_beb %in%  c("n.b.", "lokaler Aquifer",
                                    "Wiental", "Zubringer")) %>% 
+# do not differentiate between the different Donauschotter samples 
                 mutate(Geol_beb = case_when( grepl('DS', Geol_beb) ~ "Donauschotter", 
                                               TRUE ~ Geol_beb)) %>% 
+# plot
   ggplot(aes(x=Temp, y=ens)) + 
   geom_point(shape=21, size = 2) + 
   geom_smooth(method = "lm", se= FALSE, color = "blue") + 
@@ -252,9 +257,10 @@ cbind(new_metadata, ens ) %>%
 
 
 ### modelling 
-```{r}
+What environmental variables significantly impact alpha diversity
+```{r alpha-model}
  
-data_for_reg <- cbind(new_metadata) %>% dplyr::select(where(is.numeric)) %>% 
+data_for_reg <- cbind(metadata) %>% dplyr::select(where(is.numeric)) %>% 
   scale(center = T, scale = T) %>% cbind(., ens) %>% data.frame() %>% 
   dplyr::select(! c("DIC", "SO4", "Cl", "Na", "Ca", "Mg", "Lf",
                     "NO3", "NH3", "Fe", "X", "Y", "DOM_bix") )
@@ -282,8 +288,7 @@ plot(ens ~  Depth, data = data_for_reg) + abline(lm(ens ~ Depth , data = data_fo
 ## composition
 
 ### bar plot
-```{r}
-#| warning: false
+```{r comp-bar}
 
 # with microviz
 
