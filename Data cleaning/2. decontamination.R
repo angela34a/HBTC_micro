@@ -3,7 +3,9 @@ library(decontam)
 
 # 1. load asv_table ####
 asv_table <- read.delim("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/DADA2_counts_as_matrix.tsv", row.names=1)
+# rename so it matches main_sheet
 names(asv_table)<- sub("^JMF.2207.07.0","JMF-2207-07-0", names(asv_table))
+# remove unnecessary suffix
 names(asv_table) <- sub("A", "", names(asv_table))
 
 
@@ -27,10 +29,8 @@ asv_taxonomy[asv_taxonomy == ''] <- NA
 
 
 
-# 3. load the main_sheet ####
+# 3. edit the main_sheet ####
 # it  has info on blank batches 
-main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/main_sheet.csv")
-
 
 # i have one blank which was not sequenced so i removed the whole batch 
 ## this is 12 samples - not optimal! 

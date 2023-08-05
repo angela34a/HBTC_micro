@@ -69,7 +69,7 @@ read_data <- asv_no_rep %>%
 
 summary(read_data)
 sd(read_data$reads)
-# 5245  +- 3037
+# 6034 +- 4249
 
 rm(read_data)
 
@@ -83,7 +83,10 @@ asv_table_final <- rrarefy(t(asv_table_final), sample = 2000) %>%
                    t() %>% as.data.frame()
 # remove from master data >2000 samples
 master_data <- master_data[which(master_data$sample_season %in% colnames(asv_table_final)  ),]
-
+# 4 additional samples in the asv_table but not metadata
+# these are the sequenced samples not connected to any well name
+# remove
+asv_table_final <- asv_table_final[, which(colnames(asv_table_final)  %in%  master_data$sample_season)]
 
 
 # write out:
@@ -96,3 +99,5 @@ write.csv(tax_no_cont,
 # c) final metadata
 write.csv(master_data, 
           "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
+
+rm(reference, asv_no_rep)

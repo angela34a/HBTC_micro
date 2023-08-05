@@ -106,11 +106,12 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 
 # combine both in one dataset
 # make sure the columns are the same in both datasets
-rbind(  (  fall_data %>% select(!"Fe_II"   ), 
+rbind(  (  fall_data %>% select(!"Fe_II"   ) ), 
        # remove those cols not found in the other dataset   
         (  spring_data %>% select(!c("HCO3", "S")  ) ) 
       )  -> metadata
 
+rm(spring_data, fall_data)
 
 # 4. connecting the sequence codes ####
 # main sheet = sheet with sequence id and blank data

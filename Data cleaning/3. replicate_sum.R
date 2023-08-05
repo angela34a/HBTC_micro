@@ -40,7 +40,7 @@ rm(asv_all_no_cont)
 # we can integrate environmental data based on these colnames
 
 # connect spring and fall data based on the column names
-rbind(fall_data, spring_data)
+# we already connected spring and fall data into metadata
 
 master_data <- colnames(asv_no_rep) %>% as.data.frame() %>% 
                rename("sample_season" = ".") %>% 
@@ -50,7 +50,7 @@ master_data <- colnames(asv_no_rep) %>% as.data.frame() %>%
 
 
 # remove to keep environment clearer
-rm(fall_data, spring_data, main_sheet)
+rm(main_sheet, metadata)
 
 
 
