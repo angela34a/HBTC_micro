@@ -31,7 +31,7 @@ knitr::opts_chunk$set(eval = TRUE,
 
 
 # load packages
-```{r load-libraries, message = FALSE, warning = FALSE} 
+```{r load-libraries} 
 library(readxl)
 library(tidyverse)
 library(stringr)
@@ -59,7 +59,7 @@ It has, furthermore, been decontaminated by the decontam package, the contaminan
 
 The final count table and taxonomy table (no contaminat ASVs and no blank samples) and clean metadata info is here loaded in.
 
-```{r}
+```{r data-load}
 # a) final asv_table
 asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv")
 
@@ -71,7 +71,7 @@ metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_da
 ```
 
 
-```{r}
+```{r palette-load}
 # color palettes
 pal3 = c("#253494", "#225ea8", "#1d91c0", "#7fcdbb" , "#fdbb84", "#d7301f", "#7f0000", "gray")
 
@@ -89,15 +89,16 @@ c25 <- c("dodgerblue2", "#E31A1C", "green4" ,  "#6A3D9A",     "skyblue2",
 ## alpha diversity
 
 ### temperature distribution
-```{r}
 
+```{r alpha-temp}
 
-shannondiv <- vegan::diversity(t(srs_asv_all))
+shannondiv <- vegan::diversity(t(asv_table))
 ens <- exp(shannondiv)
 
-p1_en <- cbind(as.data.frame(ens), as.factor(new_metadata$category)) %>% 
+p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
   as.data.frame() %>%
-  rename("div"= "ens","temp"="as.factor(new_metadata$category)") %>%
+  rename("div"= "ens",
+"temp"="as.factor(metadata$category)") %>%
   filter(div > 0) %>% 
   ggplot( aes(x = temp, y = div, fill = temp, color=temp)) +
   #stat_boxplot(geom ='errorbar') + 
