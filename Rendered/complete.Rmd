@@ -32,24 +32,26 @@ knitr::opts_chunk$set(eval = TRUE,
 
 # load packages
 ```{r load-libraries} 
-library(readxl)
 library(tidyverse)
 library(stringr)
-
-
+library(broom)
+library(rstatix)      # tidyverse-compatible statistical testing
+library(ggpmisc)      # adding equation on ggplots
 library(vegan)
 library(patchwork)    # combining plots in a single figure
-library(ggpmisc)
+
 library(ggpubr)       # cleaner plotting 
 library(MASS)
 library(interactions)
 library(microViz)
 library(microbiome)
-library(ggstatsplot)
-library(mapview)      # coordianate plotting
-library(sf)           # coordianate plotting
-library(geosphere)    # coordianate plotting
-library(afex)         # to run ANOVA
+
+ 
+# coordianate plotting
+library(mapview)     
+library(sf)           
+library(geosphere)    
+
 
 # Set the ggplot theme 
 theme_set(theme_linedraw())
@@ -65,26 +67,32 @@ The final count table and taxonomy table (no contaminat ASVs and no blank sample
 
 ```{r data-load}
 # a) final asv_table
-asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv")
+asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv", 
+                     check.names = FALSE, row.names = 1)
 
 # b) final taxonomy table
-tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv")
+tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv",  row.names = 1)
 
 # c) final metadata
-metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
+metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv") %>% 
+  select(-"X.1")
 ```
 
 The palettes for the temperature categories color scheme (blue to red; cold to warm) and composition (25 colors distinct from one another to differentiate between taxa abundances).
 
 ```{r palette-load}
 # color palettes
-pal3 = c("#253494", "#225ea8", "#1d91c0", "#7fcdbb" , "#fdbb84", "#d7301f", "#7f0000", "gray")
+pal3 = c("#253494", "#225ea8", "#1d91c0", "#7fcdbb" , 
+         "#fdbb84", "#d7301f", "#7f0000", "gray")
 
 c25 <- c("dodgerblue2", "#E31A1C", "green4" ,  "#6A3D9A",     "skyblue2", 
          "blue1", "gold1", "brown",  "#FB9A99", "steelblue4" ,  "palegreen2" , 
          "#CAB2D6", "#FDBF6F", "khaki2",  "maroon",  "gray70",  "orchid1",  
          "deeppink1",  "darkorange4",  "green1",  "yellow4"  ,    "yellow3",  
          "beige", "darkturquoise", "#FF7F00" )
+
+name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
+                      "16-18",  "18-20",  "20<" )
 
 ```
 
@@ -105,153 +113,156 @@ ens <- exp(shannondiv)
 p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
   as.data.frame() %>%
   rename("div"= "ens",
-"temp"="as.factor(metadata$category)") %>%
+         "temp"="as.factor(metadata$category)") %>%
+  filter(temp != "NA") %>% 
 # plot
-  ggplot( aes(x = temp, y = div, fill = temp, color=temp)) +
-  geom_boxplot(alpha=0.5) +
-  scale_fill_manual(values = pal3)+
-  scale_color_manual(values = pal3)+
+  ggplot( aes(x = temp, y = div, fill = temp)) +
+  geom_jitter(width = 0.2, size = 3, shape=21, aes(fill = temp) ) +
+  geom_boxplot(alpha=0.5, outlier.shape = NA) +
+# add custom palette  
+  scale_fill_manual(values = pal3) +
+# make  the figure more readable  
   theme(legend.position = "none",
         axis.title=element_text(size=14,face="bold"),
         axis.text.y = element_text(size=10,face="bold"),
         axis.text.x = element_text(angle = 90)) +
   labs(x = "Temperature category",
-       y = "Shannon diversity index") +
-  scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
-                               "16-18",  "18-20",  "20<" ))  
+       y = "Shannon diversity index",
+       title = "Diversity by temp. categories") +
+  scale_x_discrete(limits = name_vector)  
 
-p1_en
 
 ```
 
 
-Testing if the distribution of alpha diversity per temperature categories is significant.
+Testing if the distribution of alpha diversity per temperature categories is significant and can be added to the figure in a "*" form.
 
 ```{r alpha-test}
-
-# since there is only 1 sample in the 20< i must remove it before testing
-data_for_alpha <- cbind( as.data.frame(ens), metadata$category) %>% 
-  filter(metadata$category != "20<") %>% 
-  rename("category" = "metadata$category")
 
 
 # perform ANOVA?
 ## 1. assumption: Normal distribution: 
-## Each population to be compared should be normally distributed (NOT THE ENTIRE DATASET).
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "<10"), "ens"] )
-# W = 0.89814, p-value = 0.3997
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "10-12"), "ens"] )
-# W = 0.77218, p-value = 0.04715 !!!
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "12-14"), "ens"] )
-# W = 0.97895, p-value = 0.4823
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "14-16"), "ens"] )
-# W = 0.9595, p-value = 0.05755
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "16-18"), "ens"] )
-# W = 0.93248, p-value = 0.1543
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "18-20"), "ens"] )
-# W = 0.58055, p-value = 0.0003393 !!!
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "ref_cat"), "ens"] )
-# W = 0.981, p-value = 0.9642
+## Each population to be compared should be normally distributed 
+
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  group_by(cat) %>% 
+  do(tidy(shapiro.test(.$ens)))
 
 # would be better to do a non-parametric test
+# since >20 is not normally distributed
 
 ## 2. assumption: Homogeneity of variance: 
 ## Variance in the populations compared should be the same/similar. 
-bartlett.test(ens ~ category, data= data_for_alpha)
-# Bartlett's K-squared = 0.94125, df = 6, p-value = 0.9877
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  levene_test(ens ~ cat) %>% 
+  select("p") 
 # assumption met
+# but irrelevant
 
-kruskal.test (ens ~ category, data= data_for_alpha) 
-# Kruskal-Wallis chi-squared = 11.995, df = 6, p-value = 0.06208
+# do non-parametric anova
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  kruskal_test(ens ~ cat)
+# significant difference between groups
 
-
+# do post-hoc to see which
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  dunn_test(ens ~ cat)
+# post-hoc does not show difference
+# so no adding to the plot
 
 ```
 
-Or, visually - with a new package:
-```{r ggplot-stat}
-
-alph <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
-                as.data.frame() %>%
-                rename("div"= "ens",
-"temp"="as.factor(metadata$category)") 
-
-ggbetweenstats( data  = alph, x = temp, y = div,
-                type = "np",
-                xlab = "Temperature category", 
-                ylab = "Shannon diversity index",
-                ggtheme = ggplot2::theme_classic(),
-                title = "Comparison of microbial diversity across temperature increase",
-                #boxplot.args = list(width = 0),
-                #violin.args = list(width = 3, alpha = 4),
-                  point.args = list(position = ggplot2::position_jitterdodge
-                                    (dodge.width = 1), alpha = 0.4, 
-                                    size = 3, stroke = 2, na.rm = TRUE),
-                var.equal = TRUE) + 
-  
-  ggplot2::scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
-                               "16-18",  "18-20",  "20<" )) +
-  ggplot2::scale_color_manual(values=pal3)
-```
 
 
 To see if there is a linear trend that gets obscured by the grouping:
 ```{r alpha-lin}
-p1_en_li <- cbind(as.data.frame(ens), new_metadata$Temp) %>% 
-  as.data.frame() %>%
-  rename("div"= "ens","temp"="new_metadata$Temp") %>%
-  ggplot(aes(temp,div)) + 
-  geom_point(shape=21) + 
-  geom_smooth(method = "lm", se= FALSE, color = "blue") + 
-  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), label.y = "bottom") + 
-  theme_bw() + 
-  labs(y = "Shannon diversity index", x ="Temperature")
 
-p1_en_li
+p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>% 
+  as.data.frame() %>%
+  rename("div"= "shannondiv","temp"="metadata$Temp") %>%
+  filter(temp != "NA") %>% 
+# plot
+  ggplot(aes(temp,div)) + 
+  geom_point(shape=21, size = 4, fill = "violet", alpha = 0.4) + 
+  geom_smooth(method = "lm", se= FALSE, color = "navy") + 
+  ggpmisc::stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+                        label.y = "bottom", size = 3) + 
+  labs(y = "Shannon diversity index", x ="Temperature", 
+       title = "Linear trend in diversity index") +
+  theme(legend.position = "none",
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(angle = 90)) 
+
+p1_en + p1_en_li
 ```
 
 ### spatial distribution
-Plot the diversity index on an interactive map.
+Plot the diversity index on an interactive map to see if there is a geographical pattern to the alpha diversity.
 
 ```{r alpha-spatial}
 
 # add mapview to change X and Y to standard crs
 new_metadata2 <- metadata %>% 
   cbind(., as.data.frame(ens)) %>% 
-  dplyr::select("ens", "X", "Y") %>% drop_na() %>% 
+  filter(Temp != "NA") %>% 
+# add small value to coordinates for one of the campaigns
+# so they do not overlap completely on the map  
+  mutate(X = ifelse(grepl("fall", sample_season) , X + 45, X)) %>% 
+  dplyr::select("ens", "X", "Y") %>% 
+  drop_na() %>% 
   mutate( ens_cat = cut(ens, b=6) )  
+
 
 pal <-  mapviewPalette("mapviewSpectralColors")
 
 sf_data <- st_as_sf(new_metadata2, coords = c("X", "Y"),  crs = 31253)
 mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
-        zcol= "ens_cat", zoom = 12, color="black", cex = 4, alpha = 0.9 ) 
+        zcol= "ens_cat", zoom = 12, color="black", 
+        cex = 5, alpha = 0.7 ) 
 ```
 
 
 ### aquifer distributuion
-We chose allt the aquifers that had more than 5 sampling points.
+We chose all the aquifers that had more than 5 sampling points to see whether there is an impact of aquifer categorisation on the diversity index.
 
 ```{r alpha-aquifer}
 
 cbind( metadata, ens ) %>% 
 # filter out >5 aquifers
   dplyr::filter(! Geol_beb %in%  c("n.b.", "lokaler Aquifer",
-                                   "Wiental", "Zubringer")) %>% 
+                                   "Wiental", "Zubringer", "OF")) %>% 
 # do not differentiate between the different Donauschotter samples 
-                mutate(Geol_beb = case_when( grepl('DS', Geol_beb) ~ "Donauschotter", 
+                mutate(Geol_beb = case_when( 
+                            grepl('DS', Geol_beb) ~ "Donauschotter", 
                                               TRUE ~ Geol_beb)) %>% 
+  select("ens", "Geol_beb", "Temp") %>% 
+  na.omit() %>% 
 # plot
   ggplot(aes(x=Temp, y=ens)) + 
-  geom_point(shape=21, size = 2) + 
-  geom_smooth(method = "lm", se= FALSE, color = "blue") + 
-  facet_wrap(~ Geol_beb, scales = "free") + 
+  geom_point(shape=21, size = 4, fill = "violet", alpha = 0.4) + 
+  geom_smooth(method = "lm", se= FALSE, color = "navy") +
+  facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
   #stat_poly_line() +
-  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), label.y = "bottom",
-               size = 3.4) + 
-  theme_bw() + 
+  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+               label.y = "bottom",
+               size = 3) + 
   labs(x = "Temperature",
-       y = "Effective number of species") 
+       y = "Sshannon's diversity index") +
+  theme(axis.title.x = element_text(hjust = 0), 
+        legend.position = "none",
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(angle = 90),
+        strip.text = element_text(size = 12))
 
 ```
 
@@ -337,7 +348,6 @@ srs_asv_all %>%
 
 ### bubble plot
 ```{r}
-#| warning: false
 
 
 data <- srs_asv_all %>%

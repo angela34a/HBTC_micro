@@ -47,10 +47,16 @@ master_data <- master_data %>%
                                ref_cat == "16-18_other" ~ "16-18",
                                ref_cat == "18-20_other" ~ "18-20",
                                ref_cat == "20<_other" ~ "20<",
-                               TRUE ~ "ref_cat")) %>% 
+                               grepl("referential", ref_cat)  ~ "ref_cat")) %>% 
   # remove these temporary categories from the master data
   dplyr::select(!c("temp_cat" , "reference" ,    "ref_cat"))
 
+
+# sanity check since temperature is a point of focus in study
+master_data$Temp %>% summary()
+# certian measurements go above 700 -> make those NAs instead
+master_data <- master_data %>% 
+  mutate_at(vars(Temp), ~ ifelse(. > 40, NA, .)) 
 
 
 # rarefaction ####
@@ -100,4 +106,4 @@ write.csv(tax_no_cont,
 write.csv(master_data, 
           "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
 
-rm(reference, asv_no_rep)
+rm(reference, asv_no_rep, asv_table_final, tax_no_cont, master_data)
