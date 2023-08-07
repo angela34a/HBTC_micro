@@ -39,9 +39,10 @@ library(rstatix)      # tidyverse-compatible statistical testing
 library(ggpmisc)      # adding equation on ggplots
 library(vegan)
 library(patchwork)    # combining plots in a single figure
-
-library(ggpubr)       # cleaner plotting 
+library(ggpubr)       # cleaner plotting and for stat_corr
 library(MASS)
+library(ggfortify)
+
 library(interactions)
 library(microViz)
 library(microbiome)
@@ -191,8 +192,8 @@ p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>%
   filter(temp != "NA") %>% 
 # plot
   ggplot(aes(temp,div)) + 
-  geom_point(shape=21, size = 4, fill = "violet", alpha = 0.4) + 
-  geom_smooth(method = "lm", se= FALSE, color = "navy") + 
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.6) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") + 
   ggpmisc::stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
                         label.y = "bottom", size = 3) + 
   labs(y = "Shannon diversity index", x ="Temperature", 
@@ -248,8 +249,8 @@ cbind( metadata, ens ) %>%
   na.omit() %>% 
 # plot
   ggplot(aes(x=Temp, y=ens)) + 
-  geom_point(shape=21, size = 4, fill = "violet", alpha = 0.4) + 
-  geom_smooth(method = "lm", se= FALSE, color = "navy") +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
   facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
   #stat_poly_line() +
   stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
@@ -268,32 +269,74 @@ cbind( metadata, ens ) %>%
 
 
 ### modelling 
-What environmental variables significantly impact alpha diversity
+What environmental variables significantly impact alpha diversity:
 ```{r alpha-model}
+
+df_alpha <- metadata %>%  
+  cbind(as.data.frame(ens)) %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  dplyr::select(-c("NH4", # many NAs
+            "X", "Y")) %>% # coordinates
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame()
  
-data_for_reg <- cbind(metadata) %>% dplyr::select(where(is.numeric)) %>% 
-  scale(center = T, scale = T) %>% cbind(., ens) %>% data.frame() %>% 
-  dplyr::select(! c("DIC", "SO4", "Cl", "Na", "Ca", "Mg", "Lf",
-                    "NO3", "NH3", "Fe", "X", "Y", "DOM_bix") )
+
+# remove the highly correlated ones
+cor_matrix <- cor(df_alpha)
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
+df_alpha <- df_alpha[, -highly_correlated] 
+
+# run individual regressions for each variable
+varlist <- names(df_alpha)[-19]
+models <- lapply(varlist, function(x) {
+    form <- formula(paste("ens ~", x))
+    lm(form, data=df_alpha)
+})
+# tidy up the results
+lapply(models, function(x) tidy(x)) %>% bind_rows() -> ind_models
+ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
+# only Ca and Well depth have significant relationships with ens
 
 
-nullModel = lm(ens ~ 1, data=data_for_reg) # model with the intercept only
-fullModel = lm(ens ~ ., data=data_for_reg) # model with all  variables
+lm(ens ~ Ca, data = df_alpha) %>%  summary()
+# explains <2%
+lm(ens ~ Well_depth, data = df_alpha) %>%  summary()
+# explains <2%
 
-#choose
-step.model<-stepAIC(fullModel, # start with a model containing no variables
-                    direction = 'both', # run forward selection
-                    trace = 0) # dont show step-by-step process of model selection
-#summary(step.model) # DOC, K, Depth
-RsquareAdj(step.model) # 0.043-> 4.3 %
-summary(lm(ens ~ DOC + K + Depth, data = data_for_reg)) 
-
-
-plot(ens ~ DOC , data = data_for_reg) + abline(lm(ens ~ DOC , data = data_for_reg))
-plot(ens ~  K , data = data_for_reg)+ abline(lm(ens ~ K , data = data_for_reg))
-plot(ens ~  Depth, data = data_for_reg) + abline(lm(ens ~ Depth , data = data_for_reg))
 
 ```
+
+Only variables which have a significant individual effect are Calcium and well depth, however, they do not have a good model fit. Let's see if there is a better fit of multiple refression:
+
+```{r alpha-model-combined}
+
+
+fullModel = lm(ens ~ ., data=df_alpha) # model with all  variables
+
+# remove high vif variables
+vif(fullModel)  %>% as.data.frame() %>% 
+  dplyr::rename("vif"=".") %>% 
+  filter(vif<10)  %>% 
+  rownames_to_column("envs") %>% 
+  dplyr::select("envs")  -> colnames
+
+df_alpha2 <- df_alpha %>% dplyr::select("ens", 
+                                       which(colnames(df_alpha) %in% colnames$envs ))
+
+fullModel = lm(ens ~ .  , data = df_alpha2) # model with all  variables
+
+
+#choose
+step.model<- MASS::stepAIC(fullModel, # start with a model containing no variables
+                    direction = 'both', # run forward selection
+                    trace = 0) # dont show step-by-step process of model selection
+
+#summary(step.model) # none
+RsquareAdj(step.model) # <1%
+
+```
+
 
 
 ## composition
@@ -302,82 +345,96 @@ plot(ens ~  Depth, data = data_for_reg) + abline(lm(ens ~ Depth , data = data_fo
 ```{r comp-bar}
 
 # with microviz
+detach(package:plyr, unload = TRUE)
 
-#ps_all %>% tax_fix(unknowns = c("uncultured")) %>% 
-#  comp_barplot("Class", n_taxa = 15, merge_other = TRUE, label = NULL) +
-#  facet_wrap(vars(category), scales = "free", nrow = 2, ncol = 4) + 
-#  coord_flip() +
-#  scale_fill_manual(values=c25) + 
-#  theme_minimal()
-
-
-
-
-srs_asv_all %>%
-  mutate(class = new_taxonomy$Class) %>%
-  pivot_longer(cols = - class, values_to = "abundance", names_to = "sample") %>%
-  left_join(.,new_metadata, by = c("sample" = "JMF.ID")) %>%  
-  dplyr::select ("sample", "abundance", "class", "category") %>%
-  group_by(category) %>%
+asv_table %>% 
+  mutate_if(is.integer, as.numeric) %>% 
+  mutate(class = tax_table$Class) %>%
+  pivot_longer(cols = -class, values_to = "abundance", names_to = "sample") %>%
+  left_join(.,metadata, by = c("sample" = "sample_season")) %>%  
+  dplyr::select ("abundance", "class", "category") %>%
+# to remove those with no category
+  dplyr::filter(category != "NA") %>% 
+# to make NA classes Unclassified   
+  replace_na(list(class ='Unclassified' )) %>%
+  mutate(category = as.factor(category),
+         class = as.factor(class)) %>%  
+# to find relative abundance within each category  
+  dplyr::group_by(category) %>%
   mutate (rel_abund = abundance / sum(abundance)) %>%
-  ungroup() %>% 
-  group_by(category, class) %>%
+  ungroup() %>%
+# to sum up all the counts of one class from all the samples  
+  dplyr::group_by(category, class) %>%
   summarise(rel_abund = sum(rel_abund)) %>%
   ungroup() %>%
-  group_by(category, class) %>%
+# those very rare categorize as Diverse others 
+  dplyr::group_by(category, class) %>%
   mutate(class = case_when(rel_abund< 0.015~ "Diverse others", 
                            TRUE ~ class)) %>%
   ungroup() %>%
-  group_by(category, class) %>%
+# final regrouping after categorizing for Diverse others  
+  dplyr::group_by(category, class) %>%
   summarise(rel_abund = sum(rel_abund)) %>%
   ungroup() %>%
-  #mutate(class = case_when( class == "" ~ "Unclassified", TRUE ~ class)) %>% 
-  replace_na(list(class ='Unclassified' )) %>% 
+
+# plot
   ggplot(aes(x = category, y = rel_abund, fill = class)) + 
-  geom_bar(stat = "identity") +
+  geom_bar(stat = "identity", color = "black") +
   scale_fill_manual(values=c25) +
-  theme_classic() +
-  theme(panel.grid = element_blank(), legend.position="right") + 
-  labs(x = "",
+  theme(panel.grid = element_blank(), legend.position="right",
+        legend.text = element_text(size = 6),      # Adjust the text size
+        legend.title = element_text(size = 6),
+        legend.key.size = unit(0.4, "cm"),
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(angle = 90, face = "bold")) + 
+  labs(x = "Temperature categories",
        y = "Relative abundance", 
        fill = "Class") +
-  guides(fill=guide_legend(ncol =1)) +
-  scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", "16-18",  "18-20",  "20<" )) 
+  guides(fill=guide_legend(ncol = 1)) +
+  scale_x_discrete(limits = name_vector) 
 
 ```
 
 ### bubble plot
 ```{r}
 
-
-data <- srs_asv_all %>%
-  mutate(class = new_taxonomy$Class) %>%
-  pivot_longer(cols = - class, values_to = "abundance", names_to = "sample") %>%
-  left_join(.,new_metadata, by = c("sample" = "JMF.ID")) %>%  
-  dplyr::select ("sample", "abundance", "class", "category") %>%
-  group_by(category) %>%
+asv_table %>% 
+  mutate_if(is.integer, as.numeric) %>% 
+  mutate(class = tax_table$Class) %>%
+  pivot_longer(cols = -class, values_to = "abundance", names_to = "sample") %>%
+  left_join(.,metadata, by = c("sample" = "sample_season")) %>%  
+  dplyr::select ("abundance", "class", "category") %>%
+# to remove those with no category
+  dplyr::filter(category != "NA") %>% 
+# to make NA classes Unclassified   
+  replace_na(list(class ='Unclassified' )) %>%
+  mutate(category = as.factor(category),
+         class = as.factor(class)) %>%  
+# to find relative abundance within each category  
+  dplyr::group_by(category) %>%
   mutate (rel_abund = abundance / sum(abundance)) %>%
-  ungroup() %>% 
-  group_by(category, class) %>%
+  ungroup() %>%
+# to sum up all the counts of one class from all the samples  
+  dplyr::group_by(category, class) %>%
   summarise(rel_abund = sum(rel_abund)) %>%
   ungroup() %>%
-  group_by(category, class) %>%
+# those very rare categorize as Diverse others 
+  dplyr::group_by(category, class) %>%
   mutate(class = case_when(rel_abund< 0.015~ "Diverse others", 
                            TRUE ~ class)) %>%
   ungroup() %>%
-  group_by(category, class) %>%
+# final regrouping after categorizing for Diverse others  
+  dplyr::group_by(category, class) %>%
   summarise(rel_abund = sum(rel_abund)) %>%
-  ungroup() %>%
-  #mutate(class = case_when( class == "" ~ "Unclassified", TRUE ~ class))
- replace_na(list(class ='Unclassified' ))
-
-data %>% as.data.frame() %>% 
+  ungroup() -> data
+  
+# plot  
+data %>% 
   ggplot(aes(x = as.factor(category), y = as.factor(class) )) + 
-  geom_point(aes(size = rel_abund, fill=class ), alpha = 0.75, shape = 21) + 
-  scale_size_continuous(limits = c(0.001, 0.5), 
-                        range = c(1,17), 
-                        #breaks = c(0.1, 0.2, 0.5)
-  ) + 
+  geom_point(aes(size = rel_abund, fill=class ), 
+             alpha = 0.8, shape = 21, stroke = 0.5) + 
+  scale_size_continuous(limits = c(0.001, 0.4), range = c(1,7)) + 
   labs( x= "", y = "", size = "Relative Abundance", fill = "")  + 
   theme(legend.key=element_blank(), 
         axis.text.x = element_text(colour = "black", size = 12, face = "bold", 
@@ -385,26 +442,45 @@ data %>% as.data.frame() %>%
         axis.text.y = element_text(colour = "black", face = "bold", size = 11), 
         legend.text = element_text(size = 10, face ="bold", colour ="black"), 
         legend.title = element_text(size = 12, face = "bold"), 
-        panel.background = element_blank(), panel.border = 
-          element_rect(colour = "black", fill = NA, size = 1.2), 
         legend.position = "right") +  
-  scale_fill_manual(values = c25, guide = FALSE) +   
+  scale_fill_manual(values = c25, guide = "none") +   
   scale_y_discrete(limits = rev(levels(data$class))) +
-  scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
-                               "16-18",  "18-20",  "20<" )) 
+  scale_x_discrete(limits = name_vector) 
 
 ```
 
 
-```{r}
-#| warning: false
+```{r mean-sd}
 
-## mean + sd ####
+# mean + sd 
 ps_for_sd <- tax_glom(ps_all, "Class") %>% 
   transform_sample_counts(., function(x) x/sum(x))
 
 tb <- psmelt(ps_for_sd) %>%
   as_tibble
+
+asv_table %>% 
+  mutate_if(is.integer, as.numeric) %>% 
+  mutate(class = tax_table$Class) %>%
+  pivot_longer(cols = -class, values_to = "abundance", names_to = "sample") %>%
+# to make NA classes Unclassified   
+  replace_na(list(class ='Unclassified' )) %>%
+  mutate(class = as.factor(class)) %>% 
+# to get relative values
+  dplyr::group_by(class) %>%
+  mutate (rel_abund = abundance / sum(abundance)) %>%
+  ungroup() %>% 
+  group_by(class) %>%
+  dplyr::summarize( Mean = mean(rel_abund), SD = sd(rel_abund) ) %>%
+  ungroup() %>% 
+  mutate( Mean_per = .$Mean *100, sd_per = .$SD *100 )  %>% 
+  dplyr::filter( Mean_per > 1 ) %>% 
+  left_join(., 
+            distinct( tax_table[, c("Kingdom", "Phylum", "Class")], Class , 
+                      .keep_all = TRUE ) ,
+            by=c("class" = "Class") ) 
+
+
 
 tb0 <- tb %>%
   group_by(Class) %>%
@@ -423,60 +499,63 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 ```
 
 
+
+```{r comp-diff}
+
+```
+
+
+
 ## beta diversity
 
 
 ### temperature distribution
 
-```{r}
-#| warning: false
-#| output: false
-
+```{r nmds-temp}
 # tax clean
-new_taxonomy %>% rownames_to_column("asv") -> tax_tab
+tax_table %>% rownames_to_column("asv") -> tax_tab
 
 
-# aggregate to class
-srs_asv_all %>% 
+# aggregate to genus level
+asv_table %>% 
   rownames_to_column("asv") %>% 
   pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>% 
-   left_join(., tax_tab, by = "asv") %>% 
-  dplyr::select("samples", "Class", "abundances") %>% 
-  group_by(samples,  Class) %>% 
+  left_join(., tax_tab, by = "asv") %>% 
+  dplyr::select("samples", "Genus", "abundances") %>% 
+  group_by(samples,  Genus) %>% 
   summarise(sum(abundances)) %>% 
   ungroup() %>% 
-  dplyr::filter(Class != "") %>% 
+  replace_na(list(Genus ='Unclassified' )) %>%
   pivot_wider(names_from = "samples", values_from = "sum(abundances)") %>% 
-  column_to_rownames("Class") -> asv_aggregated
+  column_to_rownames("Genus") -> asv_aggregated
 
 
 
 # do an ordination
-nmds <- metaMDS(t(asv_aggregated), k = 2, autotransform = FALSE)
+sp.dist <-  vegdist(decostand( t(asv_aggregated),  method = "hellinger") )
+nmds <- metaMDS(sp.dist, k = 2, autotransform = FALSE)
 
 ```
 
-```{r}
-#| warning: false
+```{r nmds-plot}
 
 # plot it 
 nmds_plot <- as.data.frame(nmds$points) %>% 
-  cbind(., as.factor(new_metadata$category)) %>% 
-  dplyr::rename("cat" = "as.factor(new_metadata$category)") %>% 
+  cbind(., as.factor(metadata$category)) %>% 
+  dplyr::rename("cat" = "as.factor(metadata$category)") %>%
+  filter(cat !=  "NA") %>% 
   ggplot(aes(x=MDS1,y=MDS2) ) +
-  geom_point(aes( color= cat), alpha = 0.2, size = 3) +
-  geom_point(aes( color= cat), shape = 21, size = 3) +  
+  geom_point(aes( fill= cat), shape = 21, 
+             size = 4, alpha = 0.6, stroke = 0.5) +  
   scale_color_manual(values=pal3) +
-  theme_bw() + 
-  annotate(geom="text",x=1.4, y=1, label="stress =", color="black") +   
-  annotate(geom="text", x=1.7, y=1, label=round(nmds$stress,4), color="black") +
-  stat_ellipse(aes(colour = cat), linewidth = 0.3) + 
-  theme( #aspect.ratio = 1,
-    #legend.position = c( .98,  .02),
-    #legend.justification = c("right", "bottom"),
-    legend.background = element_blank(),
-    legend.box.background = element_rect(colour = "gray")) +
-  labs(color = "Temperature \ncategory") +
+  scale_fill_manual(values=pal3) +
+  annotate(geom="text",x=0.8, y=0.7, label="stress =", color="black") +   
+  annotate(geom="text", x=1.1, y=0.7, label=round(nmds$stress,4), color="black") +
+  stat_ellipse(aes(colour = cat), linewidth = 0.4) + 
+  theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "gray")) +
+  labs(fill = "Temperature \ncategory") +
+  guides(color = "none") +
   geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
    geom_hline(yintercept = c(0), color = "grey70", linetype = 2) 
 
@@ -486,24 +565,23 @@ nmds_plot
 
 
 test ordination
-```{r}
-#| results: hold
-# first test assumption: equal dispersion
-disp <- betadisper( 
-  vegdist(t(asv_aggregated), method = "bray"), 
-  new_metadata$category ) 
+```{r nmds-test}
+
+# 1. test dispersion as an assumption (variance test for multivariate statitics)
+disp <- betadisper( sp.dist, metadata$category ) 
 
 #p>0.05 is what we need - homogenous variances
 anova(disp) #no sign. differences in dispersion
-#TukeyHSD(disp) # if there was sign, i would check with this which one are they
+# if there was sign, i would check with this which one are they
+# TukeyHSD(disp) 
 
-boxplot(disp, col=pal3) 
 
 
-# now test actual ordination
-permanova <- adonis2(t(asv_aggregated) ~ new_metadata$category, 
+# 2. now test actual ordination
+# test differences in group centroid with adonis (anova version for multivariate statistics)
+permanova <- adonis2(sp.dist ~ metadata$category, na.action = na.omit,
                     method = "bray" , permutations = 999)
-permanova # 0.452
+permanova # not sign.
 
 
 
@@ -515,10 +593,14 @@ permanova # 0.452
 
 
 ### spatial distribution
-```{r}
-#| warning: false
-gg <- new_metadata %>% st_as_sf(., coords = c("X", "Y"), crs = 31253) %>% 
-      arrange(JMF.ID) %>%
+```{r beta-spatial}
+# data with only the coordinates known
+data_coo <- metadata %>% 
+      select("sample_season", "X","Y") %>% 
+      na.omit() 
+
+gg <- data_coo %>% 
+      st_as_sf(., coords = c("X", "Y"), crs = 31253) %>% 
       st_set_crs(31253) %>% 
       st_transform(4326) %>% 
       st_coordinates() %>%
@@ -526,33 +608,33 @@ gg <- new_metadata %>% st_as_sf(., coords = c("X", "Y"), crs = 31253) %>%
       distm(., fun = distHaversine) %>%
       as.dist(.) %>% as.vector()
 
-aa <- srs_asv_all %>% t() %>%
+aa <- asv_table[, colnames(asv_table) %in% data_coo$sample_season] %>%  
+      t() %>% 
       vegdist(., method = "bray") %>%
       as.vector()
 
 
-tt <-  new_metadata %>%
-  dplyr::select("Temp") %>%
-  dist(., method = "euclidean") %>%
-  as.vector()
-
-
-matr <- data.frame(gg,tt, aa)
+matr <- data.frame(gg, aa)
 
 ggplot(matr, aes(y = gg, x = aa)) + 
-  geom_point(size = 3, alpha = 0.3, color="black", 
-             shape = 21, fill= "blue",size =5 ) +
+  geom_point(size = 3, alpha = 0.9, color="black", 
+             shape = 21, fill= "violet",size = 5 ) +
   geom_smooth(method = "lm", colour = "black", alpha = 0.2) +
-  stat_cor(method = "spearman", color="black", label.y.npc="top", 
-           label.x.npc = "left",size=4)+
-  theme_bw() + 
-  labs(x = "Community dissimilarity", y = "Physical Separation (km)") + 
-  theme( axis.text.x = element_text(face = "bold",colour = "black", size = 12), 
-         axis.text.y = element_text(face = "bold", size = 11, colour = "black"), 
-         axis.title= element_text(face = "bold", size = 14, colour = "black"), 
-         panel.background = element_blank(),
-         legend.position = "none",
-         panel.border = element_rect(fill = NA, colour = "black")) +
+# add correlation info  
+  ggpubr::stat_cor(method = "spearman",  
+                   label.y.npc="top", 
+                   label.x.npc = "left",
+                   color="black", size=4) +
+# edit visualization  
+  labs(x = "Community dissimilarity", 
+       y = "Physical Separation (km)") + 
+  theme( axis.text.x = element_text(face = "bold",
+                                    colour = "black", size = 12), 
+         axis.text.y = element_text(face = "bold", 
+                                    size = 11, colour = "black"), 
+         axis.title = element_text(face = "bold", 
+                                  size = 14, colour = "black")) +
+# to turn y scale to kms
   scale_y_continuous(breaks = seq(0, 30000, by = 5000),
                      labels = function(x) x / 1000) 
 
@@ -560,19 +642,21 @@ ggplot(matr, aes(y = gg, x = aa)) +
 
 ```
 
+
+
 ### aquifer distribution
-```{r}
-#| results: hold
-cbind(new_metadata, as.data.frame(nmds$points) ) %>% 
+```{r beta-aquifer}
+
+cbind(metadata, as.data.frame(nmds$points) ) %>% 
 dplyr::filter(! Geol_beb %in%  c("n.b.", "lokaler Aquifer",
-                                   "Wiental", "Zubringer")) %>% 
-                mutate(Geol_beb = case_when( grepl('DS', Geol_beb) ~ "Donauschotter", 
-                                              TRUE ~ Geol_beb)) -> data_aq
+                                   "Wiental", "Zubringer", "OF")) %>% 
+dplyr::select("Geol_beb") %>% 
+  na.omit() -> data_aq
 
 
 # first test assumption: equal dispersion
 disp_aq <- betadisper( 
-  vegdist(t(  asv_aggregated[,which(colnames(asv_aggregated) %in% rownames(data_aq))] ), 
+  vegdist(t(  asv_aggregated[,which(colnames(asv_aggregated) %in% rownames(data_aq))] ),
           method = "bray"), 
           data_aq$Geol_beb ) 
 
@@ -580,31 +664,131 @@ disp_aq <- betadisper(
 anova(disp_aq) #no sign. differences in dispersion
 #TukeyHSD(disp) # if there was sign, i would check with this which one are they
 
-boxplot(disp_aq) 
-
 
 # now test actual ordination
 permanova_aq <- adonis2(t( asv_aggregated[,which(colnames(asv_aggregated) %in% rownames(data_aq))] ) ~ 
                         data_aq$Geol_beb, 
                          method = "bray" , 
                         permutations = 999)
-permanova # 0.477
+permanova # not sign
 
 
 ```
 
 
 
-## constrained ordination
+## environmental data
 
-first make a PCA of env variables to use them as another env variable
+```{r}
+# as done before:
+df_alpha <- metadata %>%  
+  cbind(as.data.frame(ens)) %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  dplyr::select(-c("NH4", # many NAs
+            "X", "Y",     # coordinates
+            "Extraction_depth", "Watercolumn", "GW_Table")) %>% 
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame()
+cor_matrix <- cor(df_alpha)
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
+df_alpha <- df_alpha[, -highly_correlated] 
+
+
+# lets see if any env vars can be packed neatly in PCs
+pca_env <- prcomp(df_alpha, scale = FALSE)
+biplot(pca_env)
+
+# sample 10_27H_fall since it is a single outlier 
+# in almost every variable, and stresses the ordination
+pca_env <- prcomp(df_alpha[rownames(df_alpha) != "10-27H_fall",], scale = FALSE)
+```
+
 ```{r}
 
+ggplot2::autoplot(pca_env, 
+         
+           data = 
+           (
+           df_alpha[rownames(df_alpha) != "10-27H_fall",] %>% 
+           rownames_to_column("sample_season") %>% 
+           left_join(., metadata[,c("category", "sample_season")], 
+                     by = "sample_season") 
+           ), 
+           
+         colour = 'category',
+         size=5, 
+         alpha = 0.8,
+         loadings=TRUE, 
+         loadings.colour="black", 
+         loadings.label=TRUE, 
+         loadings.label.size=5, 
+         loadings.label.colour="black" ) +
+  
+  geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +
+  
+  geom_point(shape= 21, color = "black", size = 5) + 
+  scale_color_manual(values = pal3)+
+  theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "gray"))  -> pca_plot
+
+pca_plot
+```
+
+```{r}
+# Extract the loadings from the PCA result and convert to tidy format 
+loadings_df <-   tidy(pca_env, matrix = "rotation")
+
+
+# PC1
+# Create the ggplot2 object for plotting the loadings
+loadings_df %>% filter(PC == "1") %>% 
+  #x=reorder(class,-amount,sum)
+ggplot( aes(x = reorder(column, -value), y = value, group = factor(column))) +
+  geom_bar(stat = "identity", position = "dodge", 
+           fill= "gray90", color = "gray20") +
+  geom_text(aes(label = column), position = position_dodge(width = 0.9), 
+            #vjust = "inward",  
+            angle = 90 , hjust = "inward") +
+  labs(x = "Variables of PC1", y = "Loadings") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        legend.position = "none")  -> plot_pca1
+
+# PC2 
+loadings_df %>% filter(PC == "2") %>% 
+  #x=reorder(class,-amount,sum)
+ggplot( aes(x = reorder(column, -value), y = value, group = factor(column))) +
+  geom_bar(stat = "identity", position = "dodge", 
+           fill= "gray90", color = "gray20") +
+  geom_text(aes(label = column), position = position_dodge(width = 0.9), 
+            #vjust = "inward",  
+            angle = 90 , hjust = "inward") +
+  labs(x = "Variables of PC2", y = "Loadings") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        legend.position = "none") -> plot_pca2
+
+# PC3
+loadings_df %>% filter(PC == "3") %>% 
+  #x=reorder(class,-amount,sum)
+ggplot( aes(x = reorder(column, -value), y = value, group = factor(column))) +
+  geom_bar(stat = "identity", position = "dodge", 
+           fill= "gray90", color = "gray20") +
+  geom_text(aes(label = column), position = position_dodge(width = 0.9), 
+            #vjust = "inward",  
+            angle = 90 , hjust = "inward") +
+  labs(x = "Variables of PC3", y = "Loadings") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        legend.position = "none") -> plot_pca3
+
+plot_pca1 + plot_pca2 + plot_pca3
 ```
 
 
 ```{r}
-#| results: hold
 # env clean
 
 new_metadata %>% dplyr::select(where(is.numeric)) %>% 
@@ -722,6 +906,8 @@ plot_cca
 
 
 ```
+
+
 
 # PART IV: DS
 ```{r}
