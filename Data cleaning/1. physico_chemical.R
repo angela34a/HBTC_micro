@@ -1,6 +1,7 @@
 # Objective: combining fragmented data into one metadata
 # each campaign has its dataset, and each of them has 4 sheets
 
+library(readxl)
 
 # 1. Loading in ####
 
@@ -102,7 +103,6 @@ rm(spring_chem, spring_sampl, spring_ATP, spring_TCC, spring_coord, spring_hts, 
 # unique identifier, to differentiate spring and fall wells with same name
 spring_data$sample_season <- paste(spring_data$Sample_ID, "spring", sep = "_")
 fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
-
 
 # combine both in one dataset
 # make sure the columns are the same in both datasets

@@ -8,9 +8,8 @@ output:
     code_download: true     # Enable code download button
     code_copy: true         # Enable code copy button
     number_sections: true   # Numbering the sections
-    theme: united           # Choose a Bootstrap theme (check available themes)
+    theme: cerulean           # Choose a Bootstrap theme (check available themes)
     highlight: tango        # Syntax highlighting style 
-
 ---
 
 ```{r setup, include=FALSE}
@@ -24,14 +23,15 @@ knitr::opts_chunk$set(eval = TRUE,
                       warning = FALSE,
                       collapse = FALSE,
                       message = FALSE,
-                      engine = "R", # Chunks will always have R code, unless noted
+                      engine = "R", 
+                      # Chunks will always have R code, unless noted
                       error = TRUE)
 
 ```
 
+# Load packages
 
-# load packages
-```{r load-libraries} 
+```{r load-libraries}
 library(tidyverse)
 library(stringr)
 library(broom)
@@ -44,10 +44,6 @@ library(MASS)
 library(ggfortify)
 library(ggrepel)
 
-library(interactions)
-library(microViz)
-library(microbiome)
-
  
 # coordianate plotting
 library(mapview)     
@@ -55,29 +51,34 @@ library(sf)
 library(geosphere)    
 
 
+
 # Set the ggplot theme 
 theme_set(theme_linedraw())
 ```
 
-# load data 
+# Load data
 
-The data has been prepared for analysis with four script in the same repository. 
-The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing. 
+The data has been prepared for analysis with four script in the same repository.
+The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing.
 It has, furthermore, been decontaminated by the decontam package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorisation has been added as a variable.
 
 The final count table and taxonomy table (no contaminat ASVs and no blank samples) and clean metadata info is here loaded in.
 
 ```{r data-load}
-# a) final asv_table
-asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv", 
-                     check.names = FALSE, row.names = 1)
 
-# b) final taxonomy table
+# a) final metadata
+metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv") %>% 
+  dplyr::select(-"X.1") %>% dplyr::filter(Type != "SW")
+
+# b) final asv_table
+asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv",
+                     check.names = FALSE, row.names = 1)
+asv_table <- asv_table[, colnames(asv_table) %in% metadata$sample_season]
+
+# c) final taxonomy table
 tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv",  row.names = 1)
 
-# c) final metadata
-metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv") %>% 
-  select(-"X.1")
+
 ```
 
 The palettes for the temperature categories color scheme (blue to red; cold to warm) and composition (25 colors distinct from one another to differentiate between taxa abundances).
@@ -98,12 +99,11 @@ name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16",
 
 ```
 
+# Analysis
 
-# analysis 
+## Alpha diversity
 
-## alpha diversity
-
-### temperature distribution
+### Temperature distribution
 
 ```{r alpha-temp}
 
@@ -136,11 +136,9 @@ p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>%
 
 ```
 
-
-Testing if the distribution of alpha diversity per temperature categories is significant and can be added to the figure in a "*" form.
+Testing if the distribution of alpha diversity per temperature categories is significant and can be added to the figure in a "\*" form.
 
 ```{r alpha-test}
-
 
 # perform ANOVA?
 ## 1. assumption: Normal distribution: 
@@ -161,7 +159,7 @@ cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
   levene_test(ens ~ cat) %>% 
-  select("p") 
+  dplyr::select("p") 
 # assumption met
 # but irrelevant
 
@@ -182,9 +180,8 @@ cbind( as.data.frame(ens), metadata$category) %>%
 
 ```
 
-
-
 To see if there is a linear trend that gets obscured by the grouping:
+
 ```{r alpha-lin}
 
 p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>% 
@@ -207,7 +204,8 @@ p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>%
 p1_en + p1_en_li
 ```
 
-### spatial distribution
+### Spatial distribution
+
 Plot the diversity index on an interactive map to see if there is a geographical pattern to the alpha diversity.
 
 ```{r alpha-spatial}
@@ -232,8 +230,8 @@ mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
         cex = 5, alpha = 0.7 ) 
 ```
 
+### Aquifer distributuion
 
-### aquifer distributuion
 We chose all the aquifers that had more than 5 sampling points to see whether there is an impact of aquifer categorisation on the diversity index.
 
 ```{r alpha-aquifer}
@@ -246,7 +244,7 @@ cbind( metadata, ens ) %>%
                 mutate(Geol_beb = case_when( 
                             grepl('DS', Geol_beb) ~ "Donauschotter", 
                                               TRUE ~ Geol_beb)) %>% 
-  select("ens", "Geol_beb", "Temp") %>% 
+  dplyr::select("ens", "Geol_beb", "Temp") %>% 
   na.omit() %>% 
 # plot
   ggplot(aes(x=Temp, y=ens)) + 
@@ -268,9 +266,10 @@ cbind( metadata, ens ) %>%
 
 ```
 
+### Modelling
 
-### modelling 
 What environmental variables significantly impact alpha diversity:
+
 ```{r alpha-model}
 
 df_alpha <- metadata %>%  
@@ -297,18 +296,12 @@ models <- lapply(varlist, function(x) {
 # tidy up the results
 lapply(models, function(x) tidy(x)) %>% bind_rows() -> ind_models
 ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
-# only Ca and Well depth have significant relationships with ens
-
-
-lm(ens ~ Ca, data = df_alpha) %>%  summary()
-# explains <2%
-lm(ens ~ Well_depth, data = df_alpha) %>%  summary()
-# explains <2%
-
+# none are sign
 
 ```
 
-Only variables which have a significant individual effect are Calcium and well depth, however, they do not have a good model fit. Let's see if there is a better fit of multiple refression:
+Only variables which have a significant individual effect are Calcium and well depth, however, they do not have a good model fit.
+Let's see if there is a better fit of multiple refression:
 
 ```{r alpha-model-combined}
 
@@ -316,7 +309,7 @@ Only variables which have a significant individual effect are Calcium and well d
 fullModel = lm(ens ~ ., data=df_alpha) # model with all  variables
 
 # remove high vif variables
-vif(fullModel)  %>% as.data.frame() %>% 
+car::vif(fullModel)  %>% as.data.frame() %>% 
   dplyr::rename("vif"=".") %>% 
   filter(vif<10)  %>% 
   rownames_to_column("envs") %>% 
@@ -334,19 +327,17 @@ step.model<- MASS::stepAIC(fullModel, # start with a model containing no variabl
                     trace = 0) # dont show step-by-step process of model selection
 
 #summary(step.model) # none
-RsquareAdj(step.model) # <1%
+RsquareAdj(step.model) # <2%
 
 ```
 
+## Composition
 
+### Bar plot
 
-## composition
-
-### bar plot
 ```{r comp-bar}
 
-# with microviz
-detach(package:plyr, unload = TRUE)
+#detach(package:plyr, unload = TRUE)
 
 asv_table %>% 
   mutate_if(is.integer, as.numeric) %>% 
@@ -397,8 +388,9 @@ asv_table %>%
 
 ```
 
-### bubble plot
-```{r}
+### Bubble plot
+
+```{r comp-bubble}
 
 asv_table %>% 
   mutate_if(is.integer, as.numeric) %>% 
@@ -438,11 +430,11 @@ data %>%
   scale_size_continuous(limits = c(0.001, 0.4), range = c(1,7)) + 
   labs( x= "", y = "", size = "Relative Abundance", fill = "")  + 
   theme(legend.key=element_blank(), 
-        axis.text.x = element_text(colour = "black", size = 12, face = "bold", 
+        axis.text.x = element_text(colour = "black", size = 7, face = "bold", 
                                    angle = 90, vjust = 0.3, hjust = 1),
         axis.text.y = element_text(colour = "black", face = "bold", size = 11), 
-        legend.text = element_text(size = 10, face ="bold", colour ="black"), 
-        legend.title = element_text(size = 12, face = "bold"), 
+        legend.text = element_text(size = 7, face ="bold", colour ="black"), 
+        legend.title = element_text(size = 7, face = "bold"), 
         legend.position = "right") +  
   scale_fill_manual(values = c25, guide = "none") +   
   scale_y_discrete(limits = rev(levels(data$class))) +
@@ -450,16 +442,15 @@ data %>%
 
 ```
 
-
 ```{r mean-sd}
 
-# mean + sd 
-ps_for_sd <- tax_glom(ps_all, "Class") %>% 
-  transform_sample_counts(., function(x) x/sum(x))
+# i usually do it with phyloseq, try to do it manually
+#ps_for_sd <- tax_glom(ps_all, "Class") %>% 
+#  transform_sample_counts(., function(x) x/sum(x))
 
-tb <- psmelt(ps_for_sd) %>%
-  as_tibble
+#tb <- psmelt(ps_for_sd) %>%  as_tibble
 
+# manually:
 asv_table %>% 
   mutate_if(is.integer, as.numeric) %>% 
   mutate(class = tax_table$Class) %>%
@@ -481,8 +472,7 @@ asv_table %>%
                       .keep_all = TRUE ) ,
             by=c("class" = "Class") ) 
 
-
-
+# not great
 tb0 <- tb %>%
   group_by(Class) %>%
   dplyr::summarize( Mean = mean(Abundance), SD = sd(Abundance) ) %>%
@@ -499,18 +489,15 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ```
 
-
-
 ```{r comp-diff}
+# for each genus
+
 
 ```
 
+## Beta diversity
 
-
-## beta diversity
-
-
-### temperature distribution
+### Temperature distribution
 
 ```{r nmds-temp}
 # tax clean
@@ -560,14 +547,14 @@ nmds_plot <- as.data.frame(nmds$points) %>%
   labs(fill = "Temperature \ncategory") +
   guides(color = "none") +
   geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
-   geom_hline(yintercept = c(0), color = "grey70", linetype = 2) 
+  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) 
 
 nmds_plot
   
 ```
 
-
 test ordination
+
 ```{r nmds-test}
 
 # 1. test dispersion as an assumption (variance test for multivariate statitics)
@@ -594,12 +581,12 @@ permanova # not sign.
 
 ```
 
+### Spatial distribution
 
-### spatial distribution
 ```{r beta-spatial}
 # data with only the coordinates known
 data_coo <- metadata %>% 
-      select("sample_season", "X","Y") %>% 
+      dplyr::select("sample_season", "X","Y") %>% 
       na.omit() 
 
 gg <- data_coo %>% 
@@ -645,9 +632,8 @@ ggplot(matr, aes(y = gg, x = aa)) +
 
 ```
 
+### Aquifer distribution
 
-
-### aquifer distribution
 ```{r beta-aquifer}
 
 cbind(metadata, as.data.frame(nmds$points) ) %>% 
@@ -678,14 +664,12 @@ permanova # not sign
 
 ```
 
+## Environmental data
 
-
-## environmental data
-
-```{r}
+```{r env-data}
 # as done before:
 df_alpha <- metadata %>%  
-  cbind(as.data.frame(ens)) %>% 
+  column_to_rownames("sample_season") %>% 
   dplyr::select(where(is.numeric)) %>% 
   dplyr::select(-c("NH4", # many NAs
             "X", "Y",     # coordinates
@@ -694,26 +678,24 @@ df_alpha <- metadata %>%
   scale(center = T, scale = T) %>% 
   as.data.frame()
 cor_matrix <- cor(df_alpha)
-highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
-df_alpha <- df_alpha[, -highly_correlated] 
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9) 
+# none
+# df_alpha <- df_alpha[, - highly_correlated] 
 
 
 # lets see if any env vars can be packed neatly in PCs
 pca_env <- prcomp(df_alpha, scale = FALSE)
 biplot(pca_env)
 
-# sample 10_27H_fall since it is a single outlier 
-# in almost every variable, and stresses the ordination
-pca_env <- prcomp(df_alpha[rownames(df_alpha) != "10-27H_fall",], scale = FALSE)
 ```
 
-```{r}
+```{r pca-plot}
 
 ggplot2::autoplot(pca_env, 
          
            data = 
            (
-           df_alpha[rownames(df_alpha) != "10-27H_fall",] %>% 
+           df_alpha %>% 
            rownames_to_column("sample_season") %>% 
            left_join(., metadata[,c("category", "sample_season")], 
                      by = "sample_season") 
@@ -722,13 +704,13 @@ ggplot2::autoplot(pca_env,
          colour = 'category',
          size=5, 
          alpha = 0.2,
-         loadings=TRUE, 
-         loadings.colour="black", 
-         loadings.label=TRUE, 
-         loadings.label.size=5, 
-         loadings.label.colour="black" ) +
+         loadings = TRUE, 
+         loadings.colour = "black", 
+         loadings.label = TRUE, 
+         loadings.label.size = 4.3, 
+         loadings.label.colour = "black",
+         loadings.label.repel = TRUE) +
   
-  geom_text_repel(label = loadings_df) +
   geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
   geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +
   scale_color_manual(values = pal3)+
@@ -738,8 +720,16 @@ ggplot2::autoplot(pca_env,
 
 pca_plot
 ```
+The first three principal components explain 57% of the environmental variance in data. We can see that neither this simplification yields as clear results as sometimes obtained. It is not surprising that the communties nmds gives unclear patterns, as well. 
 
-```{r}
+```{r pca-importance}
+summary(pca_env)$importance %>% 
+  as.data.frame() %>% 
+  dplyr::select("PC1", "PC2", "PC3", "PC4")
+```
+
+Let us see which variables vary together (group together in which component):
+```{r pca-loadings}
 # Extract the loadings from the PCA result and convert to tidy format 
 loadings_df <-   tidy(pca_env, matrix = "rotation")
 
@@ -791,70 +781,96 @@ plot_pca1 + plot_pca2 + plot_pca3
 ```
 
 
-```{r}
+```{r nmds-pca-plot}
+nmds_plot2 <-  as.data.frame(nmds$points) %>% 
+  cbind(., as.factor(metadata$category)) %>% 
+  dplyr::rename("cat" = "as.factor(metadata$category)") %>%
+  filter(cat !=  "NA") %>% 
+  ggplot(aes(x=MDS1,y=MDS2) ) +
+  geom_point(aes( color = cat),
+             size = 5, alpha = 0.2) +  
+  scale_color_manual(values=pal3) +
+  stat_ellipse(aes(colour = cat), linewidth = 0.4) + 
+  theme(legend.position = "none") +
+  geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) 
+
+pca_plot2 <- pca_plot + theme(legend.position = "none") + 
+  stat_ellipse(aes(colour = category), linewidth = 0.4) 
+nmds_plot2 + pca_plot2
+```
+
+Conclusion: there is no distinct clustering by temperature in terms of microbial communities, but there is two different clusters in terms of environmental conditions: >10 C samples and 18+ samples are separated along the first PCA axis, which was mostly influenced by pH, and various ions/conductivity. The pH variation is much more pronounced in the cold samples, than warm ones.
+
+While reference samples show low variation in environmental variables and high difference in communities, the opposite is true for extremely cold samples, which are mostly uniform in all variables except for pH and are quite simmilar community-wise.
+
+It is possible that the stress of pH varibility (since pH is known to be a determining factor in composition) selects for resilient organisms, while on the other hand the reference samples allow a more even environment.
+
+
+
+### Constrained ordination
+
+CAP ordination as an distance-based alternative to the RDA (which uses bray, as opposed to RDA’s euclidean). Hellinger transformation (square root of relative abundances) is used to account for compositionality of data.
+
+
+```{r constraints}
 # env clean
+# df_alpha - already scaled and selected the important variables
 
-new_metadata %>% dplyr::select(where(is.numeric)) %>% 
-                  dplyr::select(!c("Fe", "NO3", "NH3", "DOM_bix", "X", "Y")) %>% 
-                  scale() %>% as.data.frame()  -> env.dat
-
-
-
-# aggregate to class
-sp.dat <- asv_aggregated # already done for nmds
-
+# aggregate to genus
+# asv_aggregated - already done for nmds
 
 # asv clean
-sp.dat [, which  ( colnames(sp.dat) %in% rownames(env.dat)) ] -> sp.dat
+# because some samples get removed because of NAs 
+asv_aggregated [, which  ( colnames(asv_aggregated) %in% rownames(df_alpha)) ] -> sp.dat
 
 # transform hellinger (or clr sometimes)
 decostand(sp.dat, method = "hellinger") -> sp.dat
 #clr(sp.dat) -> sp.dat
 
-
-simpleRDA <- capscale(t(sp.dat) ~  ., data=env.dat ,
+# 1. first model
+simpleRDA <- capscale(t(sp.dat) ~  ., data = df_alpha ,
                  distance = "bray",
                  scaling = "sites")
-
-# summary(simpleRDA)
-#9.6% constrained but look at vif
-
+# take only that are vif<10
 env_vars_low_vif <- vif.cca(simpleRDA) %>% 
                     as.data.frame() %>% 
                     dplyr::rename("env" = ".") %>% 
                     dplyr::filter(env < 10) 
 
- env.dat[,which(colnames(env.dat) %in%  rownames(env_vars_low_vif) )] -> env.dat
+df_alpha[,which(colnames(df_alpha) %in%  rownames(env_vars_low_vif) )] -> env.dat
 
 
-# without them
+# 2. model without them
 simpleRDA <- capscale(t(sp.dat) ~  ., 
                       data=  env.dat ,
                  distance = "bray",
                  scaling = "sites")
 
-#summary(simpleRDA) 
-# now 5.6%
+
+# test all variables and axes
+# canonical axes
+anova.model <- anova.cca(simpleRDA, by='axis', step=1000)  
+# no axes sign
+
+# the whole model
+anova.model2 <- anova.cca(simpleRDA, step=1000) #is sign
+RsquareAdj(simpleRDA)$adj.r.squared # and explains <1%
+
+
+# env parameters
+anova.model3 <- anova(simpleRDA, step=1000, by = "term") 
+# none sign
+
+
 
 ```
 
-test it
-```{r}
+None of the environmental variables are significant for the composition.
 
+```{r, eval=FALSE, include=FALSE}
 
-# Test of all canonical axes
-anova.model <- anova.cca(simpleRDA, by='axis', step=1000)  # cap1 is sign, cap2 not
-
-# test the whole model
-anova.model2 <- anova.cca(simpleRDA, step=1000) #is sign
-RsquareAdj(simpleRDA)$adj.r.squared # and explains 1.7%
-
-
-# test env paameters
-anova.model3 <- anova(simpleRDA, step=1000, by = "term") #Temp + DOC sign, and K + O2 borderline
-
-
-# new model
+# 3. final model
 simpleRDA <- capscale(t(sp.dat) ~  Temp +  DOC + K + O2, data=env.dat ,
                  distance = "bray",
                  scaling = "sites")
@@ -864,7 +880,7 @@ simpleRDA <- capscale(t(sp.dat) ~  Temp +  DOC + K + O2, data=env.dat ,
 
 ```
 
-```{r}
+```{r, eval=FALSE, include=FALSE}
 # vectors
 ccavectors <- as.matrix(scores(simpleRDA, display = "bp", scaling = "sites")*40) %>% 
   t() %>% as.data.frame() %>% 
@@ -910,292 +926,92 @@ plot_cca
 
 ```
 
-
-
 # PART IV: DS
-```{r}
-#| eval: false
+
+## Data preparation
+```{r ds-prep}
+
+spring_data_additional <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/spring_data_additional.csv", 
+         check.names = FALSE, row.names = 1)
+
+spring_data_additional$sample_season <- paste(spring_data_additional$Sample_ID, 
+                                              "spring", sep = "_")
+
+spring_data_additional %>% column_to_rownames("sample_season") %>% 
+  mutate(OF_beb = as.factor(OF_beb),
+         hts_GWWP = as.factor(hts_GWWP),
+         hts_EWS = as.factor(hts_EWS),
+         hts_No_UHI = as.factor(hts_No_UHI),
+         hts_UB = as.factor(hts_UB),
+         hts_kanal = as.factor(hts_kanal),
+         hts_FW = as.factor(hts_FW),
+         hts_Altlast = as.factor(hts_Altlast),
+         hts_OGFliess = as.factor(hts_OGFliess),
+         hts_OGSteh = as.factor(hts_OGSteh),
+         hts_Versie = as.factor(hts_Versie),
+         hts_UHI = as.factor(hts_UHI),
+         hts_count = as.factor(hts_count)) -> spring_data_additional
 
 
-# the DS dataset from EVA
-Eva_master <- read_excel("C:/Users/Angela Cukusic/Desktop/Downloads/2022_Masterjoints.xlsx")
-Eva_master$sample_season <- paste(Eva_master$Probennr, 
-                                  "spring" , sep = "_")
+# add ens
+merge(as.data.frame(ens), spring_data_additional, by = "row.names")  -> spring_data_additional
 
-# just spring DS data
-main_sheet <- read.csv("C:/Users/Angela Cukusic/Desktop/Master thesis/data/main_sheet.csv")
-main_sheet$sample_season <- paste(main_sheet$Sample.ID, 
-                                  main_sheet$Season, sep = "_")
-data_DS <- left_join(Eva_master, main_sheet, by = "sample_season") %>% 
-            dplyr::filter(grepl('DS', Geol_beb)) 
-data_DS <- ens2 %>% rownames_to_column("JMF.ID") %>% right_join(., data_DS, by ="JMF.ID")
+# filter only DS subset
+spring_data_additional %>% 
+  dplyr::filter(grepl('DS', Geol_beb)) %>% 
+  column_to_rownames("Row.names") -> spring_data_additional
+```
 
-################################################
+## Ens in relation to env vars
+```{r ds-uhi}
+# of_beb
+split_labels <- str_wrap(c("no effect", "running water effect", 
+                           "unclear"), width = 8)
 
-add_data3 <- read_excel("C:/Users/Angela Cukusic/Desktop/Downloads/2022_01_31_Daten_Andela(1).xlsx")
-data_DS <- add_data1[, c("Sample_ID", "Name_HBC")] %>% 
-  full_join(., add_data3,  by = "Name_HBC") %>% 
-  dplyr::select(!"Name_HBC") %>% left_join(data_DS , . , 
-                                           by = c("Sample.ID" = "Sample_ID"),
-                                           relationship = "many-to-many") 
-data_DS["heatsources_UHI"] <- lapply(data_DS["heatsources_UHI"], as.factor) 
-data_DS["heatsources_GWWP"] <- lapply(data_DS["heatsources_GWWP"], as.factor) 
-data_DS["heatsources_FW"] <- lapply(data_DS["heatsources_FW"], as.factor) 
-data_DS["heatsources_Versie"] <- lapply(data_DS["heatsources_Versie"], as.factor) 
-data_DS["heatsources_count"] <- lapply(data_DS["heatsources_count"], as.factor) 
-data_DS["OF_beb"] <- lapply(data_DS["OF_beb"], as.factor) 
-
-#add it to new_metadata
-new_metadata <- add_data1[, c("Sample_ID", "Name_HBC")] %>% 
-  full_join(., add_data3,  by = "Name_HBC") %>% 
-  dplyr::select(!"Name_HBC") %>% left_join(new_metadata , . , 
-                                           by = c("Sample.ID.x" = "Sample_ID"),
-                                           relationship = "many-to-many") 
-new_metadata["heatsources_UHI"] <- lapply(new_metadata["heatsources_UHI"], as.factor) 
-new_metadata["heatsources_GWWP"] <- lapply(new_metadata["heatsources_GWWP"], as.factor) 
-new_metadata["heatsources_FW"] <- lapply(new_metadata["heatsources_FW"], as.factor) 
-new_metadata["heatsources_Versie"] <- lapply(new_metadata["heatsources_Versie"], as.factor) 
-new_metadata["heatsources_count"] <- lapply(new_metadata["heatsources_count"], as.factor) 
-
-
-
-#just for spring
-
-
-#combining eva master to shannon needs the HBT name to JMF
-#of_beb
-
-# add HBT_name to the Sample ID
-new_metadata <- add_data1[, c("Sample_ID", "Name_HBC")] %>% 
-  left_join(new_metadata, .,  by = c("Sample.ID.x" = "Sample_ID"))
-
-full_data1  <-   ens2 %>% 
-  rownames_to_column("JMF.ID") %>% 
-  left_join(new_metadata,. , by = "JMF.ID") %>% 
-  dplyr::select("Name_HBC"  , "Shannon")
-  
-
-Eva_master <- read_excel("C:/Users/Angela Cukusic/Desktop/Downloads/2022_Masterjoints.xlsx")
-
-
-
-data <- full_data1 %>% 
-  right_join(., Eva_master,  by = "Name_HBC") %>% 
- dplyr::filter(grepl('DS', Geol_beb)) 
-data$OF_beb[data$OF_beb == 3] <- 0 #changing the 3s to 0
-data["OF_beb"] <- lapply(data["OF_beb"], as.factor) 
-
-split_labels <- str_wrap(c("no effect", "running water effect", "stagnant water effect"), width = 8)
-
-p1 <- data %>% dplyr::filter(OF_beb != "NA") %>% 
-  ggplot(aes(x=OF_beb, y=Shannon)) + geom_boxplot(fill = "gray", alpha=0.5) +
-  theme_bw() + labs(x="Surface water impact", y= "Shannons diversity index") +
+p1 <- spring_data_additional %>% 
+  #dplyr::filter(OF_beb != "NA") %>% 
+  ggplot(aes(x=OF_beb, y=ens)) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) +
+  labs(x="Surface water impact", 
+       y= "Shannons diversity index") +
   scale_x_discrete(labels = split_labels)
 
 
 
-shapiro.test (data_for_alpha2[which(data_for_alpha2$GWWP == "1"),"ens"] ) # norm
-shapiro.test ( data_for_alpha2[which(data_for_alpha2$GWWP == "0"),"ens"]) # norm
-bartlett.test(ens ~ GWWP, data= data_for_alpha2) # homo
-summary( aov(ens ~ GWWP, data= data_for_alpha2) )
+# surface seasling
+
+p2 <- spring_data_additional %>% 
+  dplyr::filter(hts_Versie != "NA") %>% 
+  ggplot(aes(x=hts_Versie, y=ens)) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) + 
+  labs(x="Surface sealing", 
+       y= NULL) +
+ scale_x_discrete(labels = c(">25%", "+25%"))
 
 
+#redox and wastewater info missing 
+#split_labels <- str_wrap(c("o2 > 2", "o2 < 2", 
+                           #"Mn>0.15 & Fe>0.15", 
+                           #"s>0.1"), width = 8)
 
 
-#wastewater
-data["wastew_beb"] <- lapply(data["wastew_beb"], as.factor) 
+p3 <- spring_data_additional %>% 
+  dplyr::filter(hts_UHI != "NA") %>% 
+  ggplot(aes(x=hts_UHI, y = ens)) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) + 
+  labs(x="UHI count", 
+       y= NULL) 
 
-  p2 <- data %>% 
- #dplyr::filter(OF_beb != "NA") %>% 
-  ggplot(aes(x=wastew_beb, y=Shannon)) + geom_boxplot(fill = "gray", alpha=0.5) +
- theme_bw() + labs(x="Waste water impact", y= "Shannons diversity index") +
- scale_x_discrete(labels = c("no effect", "effect present", "unclear"))
-
-p1 + p2
-
-#redox
-data["Redox_beb"] <- lapply(data["Redox_beb"], as.factor) 
-
-split_labels <- str_wrap(c("o2 > 2", "o2 < 2", "Mn>0.15 & Fe>0.15", "s>0.1"), width = 8)
-
-p3 <- data %>% 
- dplyr::filter(Redox_beb != "NA") %>% 
-  ggplot(aes(x=Redox_beb, y=Shannon)) + geom_boxplot(fill = "gray", alpha=0.5) +
-  theme_bw() + labs(x="Redox cascade", y= "Shannons diversity index") +
- scale_x_discrete(labels = split_labels )
-                     
-
-
-p1 + p2 +p3
-
-
-
-##################################################################
-
-data2 <- left_join(data, new_metadata[which(new_metadata$Season == "spring"),c("JMF.ID", "Name_HBC")], by = "Name_HBC")
-unique_values  <-  unique(data2$JMF.ID)
-data3 <- data2[!duplicated(data2$JMF.ID,  fromLast = TRUE), ] 
-data3 <- data3[which(data3$JMF.ID != "NA"), ] 
-
-data3[order(data3$JMF.ID), ]
-
-rownames(data3) <- data3$JMF.ID
-asv_ds_spring <- srs_asv_all[, which(colnames(srs_asv_all) %in% rownames(data3))]
-
-
-#categorise by temperature groups
-data3$Cat3 <- cut(data3$T_cali, 
-                         breaks=c(0, 10, 12, 14, 16, 18, 20, 30), 
-                         labels=c('<10', '10-12', '12-14', '14-16', 
-                                  '16-18', '18-20', '20<'))
-# find reference samples (the one in Marchfeld)
-reference <- new_metadata %>% 
-  filter(sample_season %in% c("22-246_fall", "EM10_spring",  "EM62_spring", "22-52_fall", 
-                              "22-52_spring", "22.7/2_spring", "22.7/2_fall"))
-
-# distinguish reference samples from the 10-12C
-data3 <- data3 %>%
-  mutate( reference = case_when(JMF.ID %in% reference$JMF.ID ~ "referential", 
-                                TRUE ~ "other")) 
-data3$ref_cat <- paste(data3$Cat3, data3$reference, sep="_")
-data3 <- data3 %>% 
-  mutate( category = case_when(ref_cat == "<10_other" ~ "<10",
-                               ref_cat == "10-12_other" ~ "10-12",
-                               ref_cat == "12-14_other" ~ "12-14",
-                               ref_cat == "14-16_other" ~ "14-16",
-                               ref_cat == "16-18_other" ~ "16-18",
-                               ref_cat == "18-20_other" ~ "18-20",
-                               ref_cat == "20<_other" ~ "20<",
-                               TRUE ~ "ref_cat")) %>% 
-  dplyr::select(!c("Cat3" , "reference" ,    "ref_cat"))
-#at this point 281 samples
-
-
-
-
-
-
-
-ps_all <- phyloseq(otu_table(as.matrix(asv_ds_spring), taxa_are_rows=TRUE), 
-                   tax_table(as.matrix(new_taxonomy) ) , 
-                  sample_data(as.data.frame(data3)) )
-
-ps_all <- prune_taxa(taxa_sums(ps_all) > 0, ps_all)
-
+p1 + p2 + p3 
 ```
 
 
-## ordination
+
+## Ordination
 ```{r}
-#| eval: false
-
-# perform ordination
-unconstrained_aitchison_pca <- ps_all %>% tax_fix() %>% 
-  tax_filter(min_prevalence = 0.1, tax_level = "Genus") %>%
-  tax_agg("Family") %>%
-  tax_transform("clr") %>%
-  ord_calc()
- #ord_calc will automatically infer you want a "PCA" here
- #specify explicitly with method = "PCA", or you can pick another method
-
-# create plot
-pca_plot <- unconstrained_aitchison_pca %>%
- ord_plot(
-    plot_taxa = 1:6, colour = "bmi_group", size = 1.5,
-   tax_vec_length = 0.325,
-  tax_lab_style = tax_lab_style(max_angle = 90, aspect_ratio = 0.5),
- auto_caption = 8)
-
-# customise plot
-customised_plot <- pca_plot +
-  stat_ellipse(aes(linetype = bmi_group, colour = bmi_group), linewidth = 0.3) + # linewidth not size, since ggplot 3.4.0
-  scale_colour_brewer(palette = "Set1") +
-theme(legend.position = "bottom") +
-coord_fixed(ratio = 0.5, clip = "off") # makes rotated labels align correctly
-
-# show plot
-customised_plot
-
-
-
-
-```
-
-
-```{r}
-#| eval: false
-
-data_for_reg <- cbind(new_metadata) %>% dplyr::select(where(is.numeric)) %>% 
- scale(center = T, scale = T) %>% cbind(., richness, ens) %>% data.frame() %>% 
-dplyr::select(! c("DIC", "SO4", "Cl", "Na", "Ca", "Mg", "Lf", "richness",
-                 "NO3", "NH3", "Fe", "X", "Y", "DOM_bix") )
-
-
-nullModel = lm(ens ~ 1, data=data_for_reg) # model with the intercept only
-fullModel = lm(ens ~ ., data=data_for_reg) # model with all  variables
-
-#choose
-step.model<-stepAIC(fullModel, # start with a model containing no variables
-                   direction = 'both', # run forward selection
-                  trace = 0) # dont show step-by-step process of model selection
-summary(step.model) # only temp significant
-RsquareAdj(step.model) # 0.04038098 -> 4 %
-summary(lm(ens ~ Temp, data = data_for_reg)) 
-
-
-### other models ####
-
-
-# categorical variables
-new_metadata %>% dplyr::select(!where(is.numeric)) 
-
-# turn NAs from OF_beb into 0
-new_metadata["OF_beb"] <- lapply(new_metadata["OF_beb"], as.character)
-# Replace NA with 0
-new_metadata[is.na(new_metadata)] <- 0 
-# Change character columns back to factors
-new_metadata["OF_beb"] <- lapply(new_metadata["OF_beb"], as.factor) 
-
-# another thing needs fixing:
-# add data about heat sources i forgot before
-add_data3 <- read_excel("~/Desktop/DS_analysis/data/heat_sources.xlsx")
-new_metadata <- add_data1[, c("Sample_ID", "Name_HBC")] %>% 
- full_join(., add_data3,  by = "Name_HBC") %>% 
-dplyr::select(!"Name_HBC") %>% left_join(new_metadata, . , 
-                                        by = c("Sample_ID.x" = "Sample_ID") ) 
-new_metadata["heatsources_UHI"] <- lapply(new_metadata["heatsources_UHI"], as.factor) 
-new_metadata["heatsources_GWWP"] <- lapply(new_metadata["heatsources_GWWP"], as.factor) 
-new_metadata["heatsources_FW"] <- lapply(new_metadata["heatsources_FW"], as.factor) 
-new_metadata["heatsources_Versie"] <- lapply(new_metadata["heatsources_Versie"], as.factor) 
-new_metadata["heatsources_count"] <- lapply(new_metadata["heatsources_count"], as.factor) 
-
-boxplot(richness ~ new_metadata$Geol_beb)
-boxplot(richness ~ new_metadata$heatsources_UHI) # according to how many heat sources impact well
-summary(aov(richness ~ category*Land.use*season*Geol_beb*UHI*heatsources_UHI, data=new_metadata) ) 
-# category:Geol_beb:heatsources_UHI interaction significant
-#summary(aov(richness ~ category:Geol_beb:heatsources_UHI, data=new_metadata) )
-#fit3 <- lm(richness ~ category:Geol_beb:heatsources_UHI, data=new_metadata) 
-#summary(fit3 ) # not sign
-
-
-# plot interactions
-#cat_plot(fit3, pred = Geol_beb, modx = heatsources_UHI, geom = "line")
-
-
-
-# the same but for ens
-#boxplot(ens ~ new_metadata$Geol_beb)
-#boxplot(ens ~ new_metadata$UHI)
-#summary(aov(ens ~ category*Land.use*season*Geol_beb*UHI, data=new_metadata) ) 
-# category + UHI + Land.use:UHI significant
-#model_ens <- aov(ens ~ category + UHI + Land.use:UHI, data=new_metadata) 
-#summary(model_ens)
-# i should do a kruskal wallis?
-
-
-
-
-
-
+# add metals
 ```
 

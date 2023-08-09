@@ -105,5 +105,8 @@ write.csv(tax_no_cont,
 # c) final metadata
 write.csv(master_data, 
           "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
+# d) additional spring data
+write.csv(spring_data_additional,
+          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/spring_data_additional.csv")
 
 rm(reference, asv_no_rep, asv_table_final, tax_no_cont, master_data)
