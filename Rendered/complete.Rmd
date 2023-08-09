@@ -42,6 +42,7 @@ library(patchwork)    # combining plots in a single figure
 library(ggpubr)       # cleaner plotting and for stat_corr
 library(MASS)
 library(ggfortify)
+library(ggrepel)
 
 library(interactions)
 library(microViz)
@@ -533,6 +534,8 @@ asv_table %>%
 
 # do an ordination
 sp.dist <-  vegdist(decostand( t(asv_aggregated),  method = "hellinger") )
+# or without the transformation
+# sp.dist <-  vegdist(t(asv_aggregated))
 nmds <- metaMDS(sp.dist, k = 2, autotransform = FALSE)
 
 ```
@@ -718,20 +721,20 @@ ggplot2::autoplot(pca_env,
            
          colour = 'category',
          size=5, 
-         alpha = 0.8,
+         alpha = 0.2,
          loadings=TRUE, 
          loadings.colour="black", 
          loadings.label=TRUE, 
          loadings.label.size=5, 
          loadings.label.colour="black" ) +
   
+  geom_text_repel(label = loadings_df) +
   geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
   geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +
-  
-  geom_point(shape= 21, color = "black", size = 5) + 
   scale_color_manual(values = pal3)+
   theme(legend.background = element_blank(),
         legend.box.background = element_rect(colour = "gray"))  -> pca_plot
+
 
 pca_plot
 ```
