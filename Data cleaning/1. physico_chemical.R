@@ -32,7 +32,7 @@ spring_land <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC
 
 # for spring there is also the heavy metal data and heatsources data
 spring_hts <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx", 
-                             sheet = "Heat_sources", col_types = c("text", "text", "text", 
+                             sheet = "Heat_sources", col_types = c("text", "text",  
                               "text", "text", "text", "text", "text", "text", "text",
                               "text", "text", "text", "text"))
 
@@ -40,7 +40,8 @@ spring_metals <- read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HB
                             sheet = "Heavy_metals")
 
 
-
+spring_meth <-  read_excel("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/HBTC_mt_spring.xlsx",
+                           sheet = "Methane")
 
 # fall campaign
 # chemical info
@@ -85,7 +86,8 @@ spring_data <- full_join(spring_chem, spring_sampl, by="Sample_ID") %>%
 # to explore specific UHI impact
 spring_data_additional <- spring_data %>% 
   full_join(., spring_hts, by="Sample_ID") %>% 
-  full_join(., spring_metals, by="Sample_ID") 
+  full_join(., spring_metals, by="Sample_ID") %>% 
+  full_join(., spring_meth, by = "Sample_ID")
   
 
 fall_data <- full_join(fall_chem, fall_sampl, by="Sample_ID") %>% 
@@ -106,10 +108,10 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 
 # combine both in one dataset
 # make sure the columns are the same in both datasets
-rbind(  (  fall_data %>% select(!"Fe_II"   ) ), 
+rbind(  (  fall_data %>% dplyr::select(!"Fe_II"   ) ), 
        # remove those cols not found in the other dataset   
-        (  spring_data %>% select(!c("HCO3", "S")  ) ) 
-      )  -> metadata
+        (  spring_data %>% dplyr::select(!c("HCO3", "S")  ) ) 
+      )  -> metadata 
 
 rm(spring_data, fall_data)
 

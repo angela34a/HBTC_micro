@@ -98,15 +98,15 @@ asv_table_final <- asv_table_final[, which(colnames(asv_table_final)  %in%  mast
 # write out:
 # a) final asv_table
 write.csv(asv_table_final, 
-          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv")
+          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/asv_table_final.csv")
 # b) final taxonomy table
 write.csv(tax_no_cont, 
-          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv")
+          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/tax_no_cont.csv")
 # c) final metadata
 write.csv(master_data, 
-          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv")
+          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/master_data.csv")
 # d) additional spring data
 write.csv(spring_data_additional,
-          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/spring_data_additional.csv")
+          "C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/spring_data_additional.csv")
 
 rm(reference, asv_no_rep, asv_table_final, tax_no_cont, master_data)

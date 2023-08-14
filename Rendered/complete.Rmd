@@ -67,18 +67,23 @@ The final count table and taxonomy table (no contaminat ASVs and no blank sample
 ```{r data-load}
 
 # a) final metadata
-metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/master_data.csv") %>% 
+metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/master_data.csv") %>% 
   dplyr::select(-"X.1") %>% dplyr::filter(Type != "SW")
 
 # b) final asv_table
-asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/asv_table_final.csv",
+asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/asv_table_final.csv",
                      check.names = FALSE, row.names = 1)
 asv_table <- asv_table[, colnames(asv_table) %in% metadata$sample_season]
 
 # c) final taxonomy table
-tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/tax_no_cont.csv",  row.names = 1)
+tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/tax_no_cont.csv",  row.names = 1)
 
-
+# d) additional data on heat islands
+spring_data_additional <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/spring_data_additional.csv", 
+         check.names = FALSE)
+spring_data_additional$sample_season <- paste(spring_data_additional$Sample_ID, 
+                                              "spring", sep = "_")
+spring_data_additional <- spring_data_additional[,-1]
 ```
 
 The palettes for the temperature categories color scheme (blue to red; cold to warm) and composition (25 colors distinct from one another to differentiate between taxa abundances).
@@ -255,7 +260,7 @@ cbind( metadata, ens ) %>%
   stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
                label.y = "bottom",
                size = 3) + 
-  labs(x = "Temperature",
+  labs(x = "Temperature [°C]",
        y = "Sshannon's diversity index") +
   theme(axis.title.x = element_text(hjust = 0), 
         legend.position = "none",
@@ -489,11 +494,103 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ```
 
-```{r comp-diff}
-# for each genus
+### Mathano-gens/trophs 
 
+Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa connected to the methane processes.
+
+
+```{r comp-diff}
+
+# 1. clean taxonomy
+# subset the "Methylo-" and "Methano-" taxa at the order level
+tax_table %>% rownames_to_column("asv") %>%   
+# filter the methane taxa
+dplyr::filter(grepl('Meth', Order)) %>% 
+dplyr::select("asv", "Order")  -> tax_meth
+
+
+# 2. clean asv_table
+# choose only the asvs from the selected orders
+asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
+  
+# only spring has CH4 measures, select spring samples
+  rownames_to_column("asv") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>%
+  
+# filter only the spring samples
+  dplyr::filter(grepl('spring', samples)) %>%   
+  
+# connect to the order information  
+  left_join(., tax_meth, by = "asv") %>% 
+  dplyr::select("samples", "Order", "abundances") %>% 
+  group_by(samples, Order) %>% 
+  
+# sum up the abundance within each order (diff sp/taxa)  
+  summarise(abund = sum(abundances)) %>% 
+  ungroup() %>% 
+  
+# remove the samples where abundance is 0
+  dplyr::filter(abund != "0") %>% 
+  
+# connect the asv data to the metadata (methane level)
+  left_join(., spring_data_additional[,c("sample_season", "CH4")], 
+            by = c("samples" = "sample_season") ) %>% 
+  
+# remove the samples that do not have methane measures  
+ dplyr::filter(CH4 != "NA") %>%
+  
+# plot 
+ggplot(aes(x = CH4 , y = abund)) +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Order, scales = "free_y") + 
+  stat_poly_eq(use_label(c( "adj.R2", "p")), 
+               label.y = "top",
+               size = 3)
+
+# now remove tax_meth since we no longer need it
+rm(tax_meth)
 
 ```
+
+Although this line seemed promising, the dataset did not have many samples which were outside of the lines of eliminating cross-section (unknown CH4 levels, unclassified order,  and/or 0 abundance in the sample). Taking that into account we can look closer into "Methylococcales", "Methylomirabilales" and "Methanosarciniales". However, even these three do not provide a robust correlation.
+
+```{r}
+# the same filtering as above
+asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
+  rownames_to_column("asv") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>%
+  dplyr::filter(grepl('spring', samples)) %>%   
+  left_join(., tax_meth, by = "asv") %>% 
+  dplyr::select("samples", "Order", "abundances") %>% 
+  group_by(samples, Order) %>% 
+  summarise(abund = sum(abundances)) %>% 
+  ungroup() %>% 
+  dplyr::filter(abund != "0") %>% 
+  
+# but connect it to the sd_CH4, not CH4 in hopes of clearer trends   
+  left_join(., spring_data_additional[,c("sample_season", "Mean_CH4")], 
+            by = c("samples" = "sample_season") ) %>% 
+  dplyr::filter(Mean_CH4 != "NA") %>%
+  
+# filter the selected orders   
+  dplyr::filter(Order %in% c( "Methylococcales", 
+                              "Methylomirabilales", 
+                              "Methanosarciniales")) %>% 
+  
+# plot 
+ggplot(aes(x = Mean_CH4 , y = abund)) +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Order, scales = "free_y") + 
+  stat_poly_eq(use_label(c( "adj.R2", "p")), 
+               label.y = "top",
+               size = 3)
+
+# now remove tax_meth since we no longer need it
+rm(tax_meth)
+```
+
 
 ## Beta diversity
 
@@ -502,7 +599,6 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 ```{r nmds-temp}
 # tax clean
 tax_table %>% rownames_to_column("asv") -> tax_tab
-
 
 # aggregate to genus level
 asv_table %>% 
@@ -819,7 +915,7 @@ CAP ordination as an distance-based alternative to the RDA (which uses bray, as 
 
 # aggregate to genus
 # asv_aggregated - already done for nmds
-
+ 
 # asv clean
 # because some samples get removed because of NAs 
 asv_aggregated [, which  ( colnames(asv_aggregated) %in% rownames(df_alpha)) ] -> sp.dat
@@ -926,19 +1022,23 @@ plot_cca
 
 ```
 
-# PART IV: DS
+# Donauschotter subset
 
 ## Data preparation
 ```{r ds-prep}
+# already added the needed data
 
-spring_data_additional <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/spring_data_additional.csv", 
-         check.names = FALSE, row.names = 1)
+# I see that there is one duplicated sample, 
+# instead of going back to the data cleaning script I will remove it here
+spring_data_additional <- spring_data_additional[ !duplicated(spring_data_additional$sample_season) ,]
+# the step before added indexed rownames - remove them
+rownames(spring_data_additional) <- c()
 
-spring_data_additional$sample_season <- paste(spring_data_additional$Sample_ID, 
-                                              "spring", sep = "_")
-
-spring_data_additional %>% column_to_rownames("sample_season") %>% 
+spring_data_additional %>% 
+  column_to_rownames("sample_season") %>% 
   mutate(OF_beb = as.factor(OF_beb),
+         Redox_beb = as.factor(Redox_beb),
+         wastew_beb = as.factor(wastew_beb),
          hts_GWWP = as.factor(hts_GWWP),
          hts_EWS = as.factor(hts_EWS),
          hts_No_UHI = as.factor(hts_No_UHI),
@@ -954,7 +1054,8 @@ spring_data_additional %>% column_to_rownames("sample_season") %>%
 
 
 # add ens
-merge(as.data.frame(ens), spring_data_additional, by = "row.names")  -> spring_data_additional
+merge(as.data.frame(ens), spring_data_additional, 
+      by = "row.names")  -> spring_data_additional
 
 # filter only DS subset
 spring_data_additional %>% 
@@ -965,11 +1066,13 @@ spring_data_additional %>%
 ## Ens in relation to env vars
 ```{r ds-uhi}
 # of_beb
-split_labels <- str_wrap(c("no effect", "running water effect", 
-                           "unclear"), width = 8)
+split_labels <- str_wrap(c("no effect",            # for "1"
+                           "running water effect", # for "2"
+                           "unclear"),             # for "3"
+                         width = 8)
 
 p1 <- spring_data_additional %>% 
-  #dplyr::filter(OF_beb != "NA") %>% 
+  dplyr::filter(OF_beb != "NA") %>% 
   ggplot(aes(x=OF_beb, y=ens)) + 
   geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
   geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) +
@@ -978,26 +1081,54 @@ p1 <- spring_data_additional %>%
   scale_x_discrete(labels = split_labels)
 
 
-
-# surface seasling
+# redox  (Redox_beb)
+split_labels <- str_wrap(c("o2 > 2", "o2 < 2", 
+                           "Mn>0.15 & Fe>0.15", 
+                           "s>0.1"), width = 8)
 
 p2 <- spring_data_additional %>% 
+  #dplyr::filter(OF_beb != "NA") %>% 
+  ggplot(aes(x=Redox_beb, y=ens)) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) +
+  labs(x="Redox cascade", 
+       y= NULL) +
+  scale_x_discrete(labels = split_labels)
+
+
+# wastewater  (wastew_beb)
+split_labels <- str_wrap(c("no effect",            # for "1"
+                           "effect present", # for "2"
+                           "unclear"), width = 8)
+
+p3 <- spring_data_additional %>% 
+  #dplyr::filter(OF_beb != "NA") %>% 
+  ggplot(aes(x=wastew_beb, y=ens)) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) +
+  labs(x="Wastewater impact", 
+       y= NULL) +
+  scale_x_discrete(labels = split_labels)
+
+p1 + p2 + p3
+```
+
+## Ens in relation to heat islands
+```{r}
+
+# surface sealing
+p4 <- spring_data_additional %>% 
   dplyr::filter(hts_Versie != "NA") %>% 
   ggplot(aes(x=hts_Versie, y=ens)) + 
   geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
   geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) + 
   labs(x="Surface sealing", 
-       y= NULL) +
+       y= "Shannons diversity index") +
  scale_x_discrete(labels = c(">25%", "+25%"))
 
 
-#redox and wastewater info missing 
-#split_labels <- str_wrap(c("o2 > 2", "o2 < 2", 
-                           #"Mn>0.15 & Fe>0.15", 
-                           #"s>0.1"), width = 8)
-
-
-p3 <- spring_data_additional %>% 
+# number of heat sources
+p5 <- spring_data_additional %>% 
   dplyr::filter(hts_UHI != "NA") %>% 
   ggplot(aes(x=hts_UHI, y = ens)) + 
   geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
@@ -1005,7 +1136,8 @@ p3 <- spring_data_additional %>%
   labs(x="UHI count", 
        y= NULL) 
 
-p1 + p2 + p3 
+
+p4 + p5
 ```
 
 
