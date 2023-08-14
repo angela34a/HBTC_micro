@@ -109,7 +109,7 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 rbind(  (  fall_data %>% select(!"Fe_II"   ) ), 
        # remove those cols not found in the other dataset   
         (  spring_data %>% select(!c("HCO3", "S")  ) ) 
-      )  -> metadata
+      )  -> metadata 
 
 rm(spring_data, fall_data)
 

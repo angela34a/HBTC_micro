@@ -489,9 +489,60 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ```
 
-```{r comp-diff}
-# for each genus
+### Mathano-gens/trophs 
 
+Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are connected to the methane processes.
+
+
+```{r comp-diff}
+
+# 1. clean taxonomy
+# subset the "Methylo-" and "Methano-" taxa at the order level
+tax_table %>% rownames_to_column("asv") %>%   
+# filter the methane taxa
+dplyr::filter(grepl('Meth', Order)) %>% 
+dplyr::select("asv", "Order")  -> tax_meth
+
+
+# 2. clean asv_table
+# choose only the asvs from the selected orders
+asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
+# only spring has CH4 measures, select spring samples
+  rownames_to_column("asv") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>% 
+# filter only the spring samples
+dplyr::filter(grepl('spring', samples)) %>%   
+# connect to the order information  
+  left_join(., tax_meth, by = "asv") %>% 
+  dplyr::select("samples", "Order", "abundances") %>% 
+  group_by(samples, Order) %>% 
+# sum up the abundance within each order (diff sp/taxa)  
+  summarise(abund = sum(abundances)) %>% 
+  ungroup() %>% 
+# connect the asv data to the metadata (methane level)
+  left_join(., metadata[,c("sample_season", "CH4")], by = "sample_season") %>% 
+
+# find correlation for each order to see which are significant
+  group_by(Order) %>%
+  cor_test(CH4, abund) %>% 
+  ungroup() %>% 
+  
+  
+# plot only significant
+ggplot(aes(x = CH4 , y = abund)) +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Order, scales = "free_y", ncol = 2) + 
+  #stat_poly_line() +
+  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+               label.y = "bottom",
+               size = 3)
+  
+
+
+
+# now remove tax_meth since we no longer need it
+rm(tax_meth)
 
 ```
 
@@ -502,7 +553,6 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 ```{r nmds-temp}
 # tax clean
 tax_table %>% rownames_to_column("asv") -> tax_tab
-
 
 # aggregate to genus level
 asv_table %>% 
@@ -819,7 +869,7 @@ CAP ordination as an distance-based alternative to the RDA (which uses bray, as 
 
 # aggregate to genus
 # asv_aggregated - already done for nmds
-
+ 
 # asv clean
 # because some samples get removed because of NAs 
 asv_aggregated [, which  ( colnames(asv_aggregated) %in% rownames(df_alpha)) ] -> sp.dat
@@ -926,7 +976,7 @@ plot_cca
 
 ```
 
-# PART IV: DS
+# Donauschotter subset
 
 ## Data preparation
 ```{r ds-prep}
