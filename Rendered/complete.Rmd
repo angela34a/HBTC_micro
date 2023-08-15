@@ -496,7 +496,11 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ### Mathano-gens/trophs 
 
+<<<<<<< HEAD
 Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa connected to the methane processes.
+=======
+Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are connected to the methane processes.
+>>>>>>> f5cab30d092db9852a9a23f467e84dba4a38a6fb
 
 
 ```{r comp-diff}
@@ -512,6 +516,7 @@ dplyr::select("asv", "Order")  -> tax_meth
 # 2. clean asv_table
 # choose only the asvs from the selected orders
 asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
+<<<<<<< HEAD
   
 # only spring has CH4 measures, select spring samples
   rownames_to_column("asv") %>% 
@@ -520,10 +525,18 @@ asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>%
 # filter only the spring samples
   dplyr::filter(grepl('spring', samples)) %>%   
   
+=======
+# only spring has CH4 measures, select spring samples
+  rownames_to_column("asv") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>% 
+# filter only the spring samples
+dplyr::filter(grepl('spring', samples)) %>%   
+>>>>>>> f5cab30d092db9852a9a23f467e84dba4a38a6fb
 # connect to the order information  
   left_join(., tax_meth, by = "asv") %>% 
   dplyr::select("samples", "Order", "abundances") %>% 
   group_by(samples, Order) %>% 
+<<<<<<< HEAD
   
 # sum up the abundance within each order (diff sp/taxa)  
   summarise(abund = sum(abundances)) %>% 
@@ -547,6 +560,32 @@ ggplot(aes(x = CH4 , y = abund)) +
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "top",
                size = 3)
+=======
+# sum up the abundance within each order (diff sp/taxa)  
+  summarise(abund = sum(abundances)) %>% 
+  ungroup() %>% 
+# connect the asv data to the metadata (methane level)
+  left_join(., metadata[,c("sample_season", "CH4")], by = "sample_season") %>% 
+
+# find correlation for each order to see which are significant
+  group_by(Order) %>%
+  cor_test(CH4, abund) %>% 
+  ungroup() %>% 
+  
+  
+# plot only significant
+ggplot(aes(x = CH4 , y = abund)) +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Order, scales = "free_y", ncol = 2) + 
+  #stat_poly_line() +
+  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+               label.y = "bottom",
+               size = 3)
+  
+
+
+>>>>>>> f5cab30d092db9852a9a23f467e84dba4a38a6fb
 
 # now remove tax_meth since we no longer need it
 rm(tax_meth)
