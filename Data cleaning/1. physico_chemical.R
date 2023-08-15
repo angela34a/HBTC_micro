@@ -110,7 +110,11 @@ fall_data$sample_season <- paste(fall_data$Sample_ID, "fall", sep = "_")
 # make sure the columns are the same in both datasets
 rbind(  (  fall_data %>% dplyr::select(!"Fe_II"   ) ), 
        # remove those cols not found in the other dataset   
+<<<<<<< HEAD
         (  spring_data %>% dplyr::select(!c("HCO3", "S")  ) ) 
+=======
+        (  spring_data %>% select(!c("HCO3", "S")  ) ) 
+>>>>>>> f5cab30d092db9852a9a23f467e84dba4a38a6fb
       )  -> metadata 
 
 rm(spring_data, fall_data)

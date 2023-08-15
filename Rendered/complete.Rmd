@@ -496,8 +496,8 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ### Mathano-gens/trophs 
 
-Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa connected to the methane processes.
 
+Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are connected to the methane processes.
 
 ```{r comp-diff}
 
@@ -512,7 +512,7 @@ dplyr::select("asv", "Order")  -> tax_meth
 # 2. clean asv_table
 # choose only the asvs from the selected orders
 asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
-  
+
 # only spring has CH4 measures, select spring samples
   rownames_to_column("asv") %>% 
   pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>%
@@ -524,7 +524,7 @@ asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>%
   left_join(., tax_meth, by = "asv") %>% 
   dplyr::select("samples", "Order", "abundances") %>% 
   group_by(samples, Order) %>% 
-  
+
 # sum up the abundance within each order (diff sp/taxa)  
   summarise(abund = sum(abundances)) %>% 
   ungroup() %>% 
@@ -547,6 +547,8 @@ ggplot(aes(x = CH4 , y = abund)) +
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "top",
                size = 3)
+
+  
 
 # now remove tax_meth since we no longer need it
 rm(tax_meth)
