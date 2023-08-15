@@ -104,11 +104,11 @@ name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16",
 
 ```
 
-# Analysis
 
-## Alpha diversity
 
-### Temperature distribution
+# Alpha diversity
+
+## Temperature distribution
 
 ```{r alpha-temp}
 
@@ -209,7 +209,7 @@ p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>%
 p1_en + p1_en_li
 ```
 
-### Spatial distribution
+## Spatial distribution
 
 Plot the diversity index on an interactive map to see if there is a geographical pattern to the alpha diversity.
 
@@ -235,7 +235,7 @@ mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
         cex = 5, alpha = 0.7 ) 
 ```
 
-### Aquifer distributuion
+## Aquifer distributuion
 
 We chose all the aquifers that had more than 5 sampling points to see whether there is an impact of aquifer categorisation on the diversity index.
 
@@ -271,7 +271,7 @@ cbind( metadata, ens ) %>%
 
 ```
 
-### Modelling
+## Modelling
 
 What environmental variables significantly impact alpha diversity:
 
@@ -305,7 +305,7 @@ ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
 
 ```
 
-Only variables which have a significant individual effect are Calcium and well depth, however, they do not have a good model fit.
+No variables have a significant individual effect.
 Let's see if there is a better fit of multiple refression:
 
 ```{r alpha-model-combined}
@@ -336,9 +336,17 @@ RsquareAdj(step.model) # <2%
 
 ```
 
-## Composition
+# Composition
 
-### Bar plot
+## Bar plot
+
+For the majority of samples, the most prevailing class was Nanoarchaeia, from the
+Archaea domain (37.9% ± 15.4% across all categories). 
+The most abundant class from the Bacteria domain was Omnitrophia (8.10% ± 4.55%), 
+and the fourth most abundant class overall also belonged to the Archaea domain - 
+Nitrososphaeria (5.08% ± 4.67%). 
+From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria (7.96% ± 6.22%),
+followed by Alphaproteobacteria (2.73% ± 3.14%).
 
 ```{r comp-bar}
 
@@ -393,7 +401,9 @@ asv_table %>%
 
 ```
 
-### Bubble plot
+## Bubble plot
+
+The same analysis,but with an alternative visualisation can be done by a bubble plot, where each phylogenetic group is more easily comparable across the categories.
 
 ```{r comp-bubble}
 
@@ -447,6 +457,7 @@ data %>%
 
 ```
 
+Fix this - the code is not valid.
 ```{r mean-sd}
 
 # i usually do it with phyloseq, try to do it manually
@@ -494,7 +505,7 @@ head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
 ```
 
-### Mathano-gens/trophs 
+## Mathano-gens/trophs 
 
 
 Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are connected to the methane processes.
@@ -550,9 +561,6 @@ ggplot(aes(x = CH4 , y = abund)) +
 
   
 
-# now remove tax_meth since we no longer need it
-rm(tax_meth)
-
 ```
 
 Although this line seemed promising, the dataset did not have many samples which were outside of the lines of eliminating cross-section (unknown CH4 levels, unclassified order,  and/or 0 abundance in the sample). Taking that into account we can look closer into "Methylococcales", "Methylomirabilales" and "Methanosarciniales". However, even these three do not provide a robust correlation.
@@ -589,14 +597,88 @@ ggplot(aes(x = Mean_CH4 , y = abund)) +
                label.y = "top",
                size = 3)
 
-# now remove tax_meth since we no longer need it
-rm(tax_meth)
 ```
 
 
-## Beta diversity
 
-### Temperature distribution
+# Temperature-related abundance trends 
+
+## Linear
+
+We do it again at the phylogenetic level of order.
+
+
+```{r}
+
+#change this code to contain:
+#group_by(Order) %>% 
+#cor_test(Temp, abund) %>% 
+#ungroup() %>% 
+#choose only significant
+
+#the same for groups but anova
+
+
+# 1. clean taxonomy
+# subset the "Methylo-" and "Methano-" taxa at the order level
+tax_table %>% rownames_to_column("asv") %>%   
+# rename the unclassified taxa
+# ....
+dplyr::select("asv", "Order")  -> tax_order
+
+
+# 2. manipulate data
+# choose only the asvs from the selected orders
+asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
+
+# only spring has CH4 measures, select spring samples
+  rownames_to_column("asv") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>%
+  
+# filter only the spring samples
+  dplyr::filter(grepl('spring', samples)) %>%   
+  
+# connect to the order information  
+  left_join(., tax_meth, by = "asv") %>% 
+  dplyr::select("samples", "Order", "abundances") %>% 
+  group_by(samples, Order) %>% 
+
+# sum up the abundance within each order (diff sp/taxa)  
+  summarise(abund = sum(abundances)) %>% 
+  ungroup() %>% 
+  
+# remove the samples where abundance is 0
+  dplyr::filter(abund != "0") %>% 
+  
+# connect the asv data to the metadata (methane level)
+  left_join(., spring_data_additional[,c("sample_season", "CH4")], 
+            by = c("samples" = "sample_season") ) %>% 
+  
+# remove the samples that do not have methane measures  
+ dplyr::filter(CH4 != "NA") %>%
+  
+# plot 
+ggplot(aes(x = CH4 , y = abund)) +
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Order, scales = "free_y") + 
+  stat_poly_eq(use_label(c( "adj.R2", "p")), 
+               label.y = "top",
+               size = 3)
+
+
+```
+
+## By category
+```{r}
+
+
+```
+
+
+# Beta diversity
+
+## Temperature distribution
 
 ```{r nmds-temp}
 # tax clean
@@ -679,7 +761,7 @@ permanova # not sign.
 
 ```
 
-### Spatial distribution
+## Spatial distribution
 
 ```{r beta-spatial}
 # data with only the coordinates known
@@ -730,7 +812,7 @@ ggplot(matr, aes(y = gg, x = aa)) +
 
 ```
 
-### Aquifer distribution
+## Aquifer distribution
 
 ```{r beta-aquifer}
 
@@ -762,7 +844,7 @@ permanova # not sign
 
 ```
 
-## Environmental data
+# Environmental data
 
 ```{r env-data}
 # as done before:
@@ -906,7 +988,7 @@ It is possible that the stress of pH varibility (since pH is known to be a deter
 
 
 
-### Constrained ordination
+## Constrained ordination
 
 CAP ordination as an distance-based alternative to the RDA (which uses bray, as opposed to RDA’s euclidean). Hellinger transformation (square root of relative abundances) is used to account for compositionality of data.
 
