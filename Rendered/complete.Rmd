@@ -605,11 +605,6 @@ We do it again at the phylogenetic level of order.
 
 ```{r}
 
-
-
-#the same for groups but anova
-
-
 # 1. clean taxonomy
 # subset the "Methylo-" and "Methano-" taxa at the order level
 tax_table %>% rownames_to_column("asv") %>%   
@@ -676,9 +671,43 @@ ggplot(aes(x = Temp , y = abund)) +
 
 ```
 
+Although there are certain significant correlations of order abundance and temperature, the results get less clear when the regression formula is used.
+This could be a result of non-parametric methods, like correlation, being generally less affected by outliers.
+The only order I would be comfortable claiming shows dependence would be the "Candidatus Roizmanbacteria".
+
 ## By category
 
+We start with the 157 orders (orders found in 40+ sasmples), and their abundances and temperature measures.
+Instead of using the otherwise present temperature categorisation with 2°C steps, new categorization was done with 0-13-16-16+ temperatures, since \~50% of data points is within the 13-16 range.
+This way the cold and warm extreme is on either side of the 13-16 spectrum.
+
 ```{r}
+data_for_temp %>% dplyr::select(!c("n", "samples")) %>% 
+  mutate(temp_cat = case_when(Temp <13 ~ "cold",
+                              Temp >15 ~ "hot", 
+                              Temp >= 13 & Temp <= 15 ~ "mid")) -> data_for_group
+
+
+# look at anova btw order abundances and temperature groups 
+ data_for_group %>% 
+ group_by(Order) %>% 
+ anova_test(abund ~ temp_cat) %>% 
+ ungroup() %>% 
+ as.data.frame() %>%    
+# choose only significant
+ dplyr::filter(p<0.05) %>% 
+ dplyr::select("Order")  -> corr_orders_group
+ 
+ 
+data_for_group [which(data_for_group$Order %in% corr_orders_group$Order),
+               c("Order", "abund",  "temp_cat")] %>% 
+# plot 
+ggplot(aes(x = temp_cat , y = abund)) +
+  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
+  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) + 
+  facet_wrap(~ Order, scales = "free_y") +
+  scale_x_discrete(limits = c("cold", "mid", "hot"))
+
 
 
 ```
