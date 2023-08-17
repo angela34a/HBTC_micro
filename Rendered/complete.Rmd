@@ -151,7 +151,8 @@ cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
   group_by(cat) %>% 
-  do(tidy(shapiro.test(.$ens)))
+  do(tidy(shapiro.test(.$ens))) %>% 
+  dplyr::filter(p.value <0.05)
 
 # would be better to do a non-parametric test
 # since >20 is not normally distributed
@@ -177,7 +178,8 @@ cbind( as.data.frame(ens), metadata$category) %>%
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
-  dunn_test(ens ~ cat)
+  dunn_test(ens ~ cat) %>% 
+  dplyr::filter(p.adj < 0.05)
 # post-hoc does not show difference
 # so no adding to the plot
 
@@ -304,7 +306,7 @@ ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
 ```
 
 No variables have a significant individual effect.
-Let's see if there is a better fit of multiple refression:
+Let's see if there is a better fit of multiple regression:
 
 ```{r alpha-model-combined}
 
@@ -337,10 +339,6 @@ RsquareAdj(step.model) # <2%
 # Composition
 
 ## Bar plot
-
-For the majority of samples, the most prevailing class was Nanoarchaeia, from the Archaea domain (37.9% ± 15.4% across all categories).
-The most abundant class from the Bacteria domain was Omnitrophia (8.10% ± 4.55%), and the fourth most abundant class overall also belonged to the Archaea domain - Nitrososphaeria (5.08% ± 4.67%).
-From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria (7.96% ± 6.22%), followed by Alphaproteobacteria (2.73% ± 3.14%).
 
 ```{r comp-bar}
 
@@ -451,52 +449,42 @@ data %>%
 
 ```
 
-Fix this - the code is not valid.
+For all categories, the most prevailing class was Nanoarchaeia, from the Archaea domain (33.3% ± 3.34% across all categories).
+The most abundant class from the Bacteria domain was Omnitrophia (8.19% ± 2.13%), and the fourth most abundant class overall also belonged to the Archaea domain - Nitrososphaeria (5.44% ± 1%).
+From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria (6.2% ± 1.28%).
 
 ```{r mean-sd}
 
-# i usually do it with phyloseq, try to do it manually
-#ps_for_sd <- tax_glom(ps_all, "Class") %>% 
-#  transform_sample_counts(., function(x) x/sum(x))
+# i usually do it with phyloseq:
+# ps_for_sd <- tax_glom(ps_all, "Class") %>% 
+# transform_sample_counts(., function(x) x/sum(x))
+# tb <- psmelt(ps_for_sd) %>%  as_tibble
+# tb0 <- tb %>% 
+#  group_by(Class) %>%
+#  dplyr::summarize( Mean = mean(abund), SD = sd(abund) ) %>%
+#  ungroup() %>% 
+#  mutate( Mean_per = .$Mean *100, sd_per = .$SD *100 )  %>% 
+#  dplyr::filter( Mean_per > 1 ) %>% 
+#  left_join(., 
+#            distinct( tax_table[, c("Kingdom", "Phylum", "Class")], Class , 
+#                      .keep_all = TRUE ) ,
+#            by="Class") 
 
-#tb <- psmelt(ps_for_sd) %>%  as_tibble
+# head(tb0[order(tb0$Mean_per), c("Class", "Mean_per", "sd_per", "Phylum")])
+# head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
-# manually:
-asv_table %>% 
-  mutate_if(is.integer, as.numeric) %>% 
-  mutate(class = tax_table$Class) %>%
-  pivot_longer(cols = -class, values_to = "abundance", names_to = "sample") %>%
-# to make NA classes Unclassified   
-  replace_na(list(class ='Unclassified' )) %>%
-  mutate(class = as.factor(class)) %>% 
-# to get relative values
-  dplyr::group_by(class) %>%
-  mutate (rel_abund = abundance / sum(abundance)) %>%
+# but this shows the relative abundance per sample
+# it seems more sensible to have the following results with what is shown in plots:
+
+data %>% # as summarized in the above chunk 
+  group_by(class) %>% 
+  summarise( Mean = mean(rel_abund), SD = sd(rel_abund) ) %>% 
   ungroup() %>% 
-  group_by(class) %>%
-  dplyr::summarize( Mean = mean(rel_abund), SD = sd(rel_abund) ) %>%
+  dplyr::mutate( Mean_perc = .$Mean *100, sd_perc = .$SD *100)  %>% 
   ungroup() %>% 
-  mutate( Mean_per = .$Mean *100, sd_per = .$SD *100 )  %>% 
-  dplyr::filter( Mean_per > 1 ) %>% 
-  left_join(., 
-            distinct( tax_table[, c("Kingdom", "Phylum", "Class")], Class , 
-                      .keep_all = TRUE ) ,
-            by=c("class" = "Class") ) 
-
-# not great
-tb0 <- tb %>%
-  group_by(Class) %>%
-  dplyr::summarize( Mean = mean(Abundance), SD = sd(Abundance) ) %>%
-  ungroup() %>% 
-  mutate( Mean_per = .$Mean *100, sd_per = .$SD *100 )  %>% 
-  dplyr::filter( Mean_per > 1 ) %>% 
-  left_join(., 
-            distinct( new_taxonomy[, c("Kingdom", "Phylum", "Class")], Class , 
-                      .keep_all = TRUE ) ,
-            by="Class") 
-
-head(tb0[order(tb0$Mean_per), c("Class", "Mean_per", "sd_per", "Phylum")])
-head(tb0[, c("Class", "Kingdom", "Phylum")] )
+  arrange(desc(Mean_perc) ) %>% 
+  dplyr::select(!c("Mean", "SD")) %>% 
+  dplyr::filter(Mean_perc > 2)
 
 ```
 
@@ -606,7 +594,6 @@ We do it again at the phylogenetic level of order.
 ```{r}
 
 # 1. clean taxonomy
-# subset the "Methylo-" and "Methano-" taxa at the order level
 tax_table %>% rownames_to_column("asv") %>%   
 dplyr::select("asv", "Order") %>% 
 # rename the unclassified taxa
@@ -703,14 +690,34 @@ data_for_group [which(data_for_group$Order %in% corr_orders_group$Order),
                c("Order", "abund",  "temp_cat")] %>% 
 # plot 
 ggplot(aes(x = temp_cat , y = abund)) +
-  geom_jitter(width = 0.2, size = 3, shape=21, fill = "violet") +
-  geom_boxplot(fill = "violet", alpha=0.5, outlier.shape = NA) + 
+  geom_jitter(width = 0.2, size = 3, shape=21, aes(fill = temp_cat) ) +
+  geom_boxplot( alpha=0.5, outlier.shape = NA, aes(fill = temp_cat)) + 
   facet_wrap(~ Order, scales = "free_y") +
-  scale_x_discrete(limits = c("cold", "mid", "hot"))
-
-
+  scale_x_discrete(limits = c("cold", "mid", "hot")) +
+  scale_fill_manual(values = c("lightblue", "#d7301f", "#fdbb84")) +
+  theme(legend.position = "none") + 
+  labs(y = "Abundance (counts from the sequencing)",
+       x = "Temperature")
 
 ```
+
+When looking at the groups there is still an upwards trend in the Candidatus Roizmanbacteria, butnow there is also significant difference in the Desulfobacterales order.
+There is a downwards trend in Microtrichales, and Legionallales.
+
+We can try to do a post-hoc test to see if it is significant.
+
+```{r}
+
+data_for_group %>% 
+ group_by(Order) %>% 
+ tukey_hsd(abund ~ temp_cat) %>% 
+ ungroup() %>% 
+ as.data.frame() %>%    
+# choose only significant
+ dplyr::filter(p.adj.signif != "ns")
+```
+
+Desulfobacterales do indeed have a significantly different abundance between the cold and hot samples, as do the Candidatus Roizmanbacteria and Microtrichales.
 
 # Beta diversity
 
