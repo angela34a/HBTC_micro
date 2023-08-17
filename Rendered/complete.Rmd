@@ -58,32 +58,42 @@ theme_set(theme_linedraw())
 
 # Load data
 
-The data has been prepared for analysis with four script in the same repository.
-The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campaing.
-It has, furthermore, been decontaminated by the decontam package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorisation has been added as a variable.
+The data has been prepared for analysis with four scripts in the same repository (<https://github.com/angela34a/HBTC_micro/tree/main/Data%20cleaning>).
 
-The final count table and taxonomy table (no contaminat ASVs and no blank samples) and clean metadata info is here loaded in.
+The metadata has been cleaned of unnecessary variables, as well as combined together from both the spring and fall sampling campain.
+It has, furthermore, been decontaminated by the *decontam* package, the contaminants and blanks were then removed from the count table, replicates of the same sampling site were summed up, and, finally, the temperature categorization has been added as a variable.
+
+The final count table and taxonomy table (no contaminat ASVs and no blank samples) and clean metadata info is loaded in this chunk.
 
 ```{r data-load}
 
 # a) final metadata
 metadata <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/master_data.csv") %>% 
-  dplyr::select(-"X.1") %>% dplyr::filter(Type != "SW")
+  dplyr::select(-"X.1") %>% 
+# filter out the surface water  
+  dplyr::filter(Type != "SW")
+
 
 # b) final asv_table
 asv_table <-read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/asv_table_final.csv",
                      check.names = FALSE, row.names = 1)
+# filter out the surface water again
 asv_table <- asv_table[, colnames(asv_table) %in% metadata$sample_season]
+
 
 # c) final taxonomy table
 tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/tax_no_cont.csv",  row.names = 1)
 
+
 # d) additional data on heat islands
 spring_data_additional <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/spring_data_additional.csv", 
          check.names = FALSE)
+# add ifentifier column
 spring_data_additional$sample_season <- paste(spring_data_additional$Sample_ID, 
                                               "spring", sep = "_")
+# remove indexed row names
 spring_data_additional <- spring_data_additional[,-1]
+
 ```
 
 The palettes for the temperature categories color scheme (blue to red; cold to warm) and composition (25 colors distinct from one another to differentiate between taxa abundances).
@@ -99,6 +109,7 @@ c25 <- c("dodgerblue2", "#E31A1C", "green4" ,  "#6A3D9A",     "skyblue2",
          "deeppink1",  "darkorange4",  "green1",  "yellow4"  ,    "yellow3",  
          "beige", "darkturquoise", "#FF7F00" )
 
+# for later easier uniform plotting of categories 
 name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
                       "16-18",  "18-20",  "20<" )
 
@@ -106,15 +117,22 @@ name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16",
 
 # Alpha diversity
 
+The richness and diversity of the samples has been analysed by temperature (in linear form, and categorical), by geographic location and by aquifer type.
+
 ## Temperature distribution
+
+The temperature categorization was done in previous script and consists of \<10, 10-12, 12-14, 14-16, 16-18, 18-20, 20\< samples and the reference samples.
 
 ```{r alpha-temp}
 
-# Shannon's index 
+# calculate Shannon's index with vegan
 shannondiv <- vegan::diversity(t(asv_table))
-# turning Shannon's index to effective number of species to be more comparable across studies 
+# turning Shannon to effective number of species 
+# to be more comparable across studies 
 ens <- exp(shannondiv)
 
+
+# make figure to plot later
 p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
   as.data.frame() %>%
   rename("div"= "ens",
@@ -133,40 +151,50 @@ p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>%
         axis.text.x = element_text(angle = 90)) +
   labs(x = "Temperature category",
        y = "Shannon diversity index",
-       title = "Diversity by temp. categories") +
+       title = "Diversity by temp. category") +
   scale_x_discrete(limits = name_vector)  
 
 
 ```
 
 Testing if the distribution of alpha diversity per temperature categories is significant and can be added to the figure in a "\*" form.
+<<<<<<< HEAD
+To perform ANOVA, the assumption of normality and homoscedasticity were checked.
+=======
+To perform ANOVA the assumption of normality and homoscedasticity were checked.
+>>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
+=======
+To perform ANOVA the assumption of normality and homoscedasticity were checked.
+>>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
 
 ```{r alpha-test}
 
-# perform ANOVA?
-## 1. assumption: Normal distribution: 
-## Each population to be compared should be normally distributed 
+# 1. assumption - normal distribution: 
+# Each population to be compared should be normally distributed 
 
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
   group_by(cat) %>% 
   do(tidy(shapiro.test(.$ens))) %>% 
-  dplyr::filter(p.value <0.05)
+  dplyr::filter(p.value <0.06)
 
-# would be better to do a non-parametric test
-# since >20 is not normally distributed
+# I would rather do a non-parametric test
+# since >20 borders not normally distributed
 
-## 2. assumption: Homogeneity of variance: 
-## Variance in the populations compared should be the same/similar. 
+
+
+# 2. assumption - homogeneity of variance: 
+# Variance in the populations compared should be the same/similar. 
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
   levene_test(ens ~ cat) %>% 
   dplyr::select("p") 
+
+
 # assumption met
 # but irrelevant
-
 # do non-parametric anova
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
@@ -174,31 +202,42 @@ cbind( as.data.frame(ens), metadata$category) %>%
   kruskal_test(ens ~ cat)
 # significant difference between groups
 
+
 # do post-hoc to see which
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
   dunn_test(ens ~ cat) %>% 
   dplyr::filter(p.adj < 0.05)
-# post-hoc does not show difference
+# post-hoc does not show individual difference
 # so no adding to the plot
 
 ```
 
-To see if there is a linear trend that gets obscured by the grouping:
+<<<<<<< HEAD
+<<<<<<< HEAD
+Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
+=======
+Since there is no clear significant difference shown by group, we willtry to see if there is a linear trend.
+>>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
+=======
+Since there is no clear significant difference shown by group, we willtry to see if there is a linear trend.
+>>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
 
 ```{r alpha-lin}
 
-p1_en_li <- cbind(as.data.frame(shannondiv), metadata$Temp) %>% 
+p1_en_li <- cbind(as.data.frame(ens), metadata$Temp) %>% 
   as.data.frame() %>%
-  rename("div"= "shannondiv","temp"="metadata$Temp") %>%
+  rename("div"= "ens","temp"="metadata$Temp") %>%
   filter(temp != "NA") %>% 
+  
 # plot
   ggplot(aes(temp,div)) + 
   geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.6) + 
   geom_smooth(method = "lm", se= FALSE, color = "black") + 
-  ggpmisc::stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
-                        label.y = "bottom", size = 3) + 
+  ggpmisc::stat_poly_eq(use_label(c("adj.R2", "p")), 
+                        label.y = "top", size = 4,
+                        small.p = TRUE) + 
   labs(y = "Shannon diversity index", x ="Temperature", 
        title = "Linear trend in diversity index") +
   theme(legend.position = "none",
@@ -235,6 +274,10 @@ mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
         cex = 5, alpha = 0.7 ) 
 ```
 
+Does not seem to be the case, since even the reference samples are not uniform in the color palette.
+The pattern also changes seasonally.
+There is no uniformity in higher diversity locations, neither the city center nor the outskirts are predominately diverse/low in diversity.
+
 ## Aquifer distributuion
 
 We chose all the aquifers that had more than 5 sampling points to see whether there is an impact of aquifer categorisation on the diversity index.
@@ -242,7 +285,7 @@ We chose all the aquifers that had more than 5 sampling points to see whether th
 ```{r alpha-aquifer}
 
 cbind( metadata, ens ) %>% 
-# filter out >5 aquifers
+# filter out aquifers that have less than 5 sample points 
   dplyr::filter(! Geol_beb %in%  c("n.b.", "lokaler Aquifer",
                                    "Wiental", "Zubringer", "OF")) %>% 
 # do not differentiate between the different Donauschotter samples 
@@ -256,9 +299,8 @@ cbind( metadata, ens ) %>%
   geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
   geom_smooth(method = "lm", se= FALSE, color = "black") +
   facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
-  #stat_poly_line() +
   stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
-               label.y = "bottom",
+               label.y = "bottom", small.p = TRUE,
                size = 3) + 
   labs(x = "Temperature [°C]",
        y = "Sshannon's diversity index") +
@@ -271,9 +313,14 @@ cbind( metadata, ens ) %>%
 
 ```
 
+All three aquifer types have a different range of temperature.
+Donauschotter with the most sampling points and the widest area, spans across the 5-20 °C, while Liesingbach falls in the medium temperature range, and Schichtwasser on the warmer side of the spectrum.
+
+While Schichtwasser groundwater exhibits the clearest trend, increasing (p\<0.05), with a linear regression explaining 40% of the variation, it is unclear whether model is sensical from the biology point of view - it is questionable whether Schichtwasser can be regarded as an uniform aquifer categorization considering that individual ground wells within this category are wildly heterogenous.
+
 ## Modelling
 
-What environmental variables significantly impact alpha diversity:
+Considering that there is no clear impact of temperature, aquifer nor location on the diversity distribution, we look into what environmental variables significantly impact alpha diversity:
 
 ```{r alpha-model}
 
