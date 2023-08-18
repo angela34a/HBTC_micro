@@ -158,14 +158,9 @@ p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>%
 ```
 
 Testing if the distribution of alpha diversity per temperature categories is significant and can be added to the figure in a "\*" form.
-<<<<<<< HEAD
+
 To perform ANOVA, the assumption of normality and homoscedasticity were checked.
-=======
-To perform ANOVA the assumption of normality and homoscedasticity were checked.
->>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
-=======
-To perform ANOVA the assumption of normality and homoscedasticity were checked.
->>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
+
 
 ```{r alpha-test}
 
@@ -214,15 +209,10 @@ cbind( as.data.frame(ens), metadata$category) %>%
 
 ```
 
-<<<<<<< HEAD
+
 <<<<<<< HEAD
 Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
-=======
-Since there is no clear significant difference shown by group, we willtry to see if there is a linear trend.
->>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
-=======
-Since there is no clear significant difference shown by group, we willtry to see if there is a linear trend.
->>>>>>> 7edbdbc546e9093dc1703d8182c096c98b6a06e4
+
 
 ```{r alpha-lin}
 
