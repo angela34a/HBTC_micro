@@ -43,6 +43,7 @@ library(ggpubr)       # cleaner plotting and for stat_corr
 library(MASS)
 library(ggfortify)
 library(ggrepel)
+library(knitr)
 
  
 # coordianate plotting
@@ -342,11 +343,11 @@ ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
 
 ```
 
-No variables have a significant individual effect.
-Let's see if there is a better fit of multiple regression:
+No variables have a significant individual effect on the Shannon's diversity index.
+
+Let's see if there is a better fit of multiple regression of numeric variables:
 
 ```{r alpha-model-combined}
-
 
 fullModel = lm(ens ~ ., data=df_alpha) # model with all  variables
 
@@ -373,13 +374,23 @@ RsquareAdj(step.model) # <2%
 
 ```
 
+There is still no significant effect, even a combined one. Next step would be to go beyond the analysis by numeric and categorical variables (aquifer categorization), respectively, and try to go for an interplay of both categorical and numeric variables. To be done later. 
+
+
 # Composition
+
+The taxonomic composition by temeprature categories was done in form of barplot and bubble plot, and defined numerically.
+
+No immediate difference can be seen. Nanoarchaea visibly the most abundant clalss in each category.
 
 ## Bar plot
 
 ```{r comp-bar}
 
-#detach(package:plyr, unload = TRUE)
+# detach(package:plyr, unload = TRUE)
+# tried fixing conflicts from select and filter by detaching
+# but it is a conflict with some other package as well
+# simply continue adding dplyr:: before the command 
 
 asv_table %>% 
   mutate_if(is.integer, as.numeric) %>% 
@@ -432,7 +443,7 @@ asv_table %>%
 
 ## Bubble plot
 
-The same analysis,but with an alternative visualisation can be done by a bubble plot, where each phylogenetic group is more easily comparable across the categories.
+The same analysis,but with an alternative visualization is done by a bubble plot, where each phylogenetic group is more easily comparable across the categories.
 
 ```{r comp-bubble}
 
@@ -490,6 +501,7 @@ For all categories, the most prevailing class was Nanoarchaeia, from the Archaea
 The most abundant class from the Bacteria domain was Omnitrophia (8.19% ± 2.13%), and the fourth most abundant class overall also belonged to the Archaea domain - Nitrososphaeria (5.44% ± 1%).
 From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria (6.2% ± 1.28%).
 
+
 ```{r mean-sd}
 
 # i usually do it with phyloseq:
@@ -510,8 +522,10 @@ From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria 
 # head(tb0[order(tb0$Mean_per), c("Class", "Mean_per", "sd_per", "Phylum")])
 # head(tb0[, c("Class", "Kingdom", "Phylum")] )
 
+
 # but this shows the relative abundance per sample
 # it seems more sensible to have the following results with what is shown in plots:
+
 
 data %>% # as summarized in the above chunk 
   group_by(class) %>% 
@@ -521,13 +535,14 @@ data %>% # as summarized in the above chunk
   ungroup() %>% 
   arrange(desc(Mean_perc) ) %>% 
   dplyr::select(!c("Mean", "SD")) %>% 
-  dplyr::filter(Mean_perc > 2)
+  dplyr::filter(Mean_perc > 2) %>% 
+  knitr::kable()
 
 ```
 
 ## Mathano-gens/trophs
 
-Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are connected to the methane processes.
+Considering the high methane concentrations in Vienna, we tried connecting the concentrations to the taxa which are known to be connected to the methane processes.
 
 ```{r comp-diff}
 
@@ -576,19 +591,18 @@ ggplot(aes(x = CH4 , y = abund)) +
   facet_wrap(~ Order, scales = "free_y") + 
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "top",
-               size = 3)
+               size = 3) +
+  labs(y="Abundances (absolute 16S counts)",
+       x= "Methane levels")
 
   
-
-# now remove tax_meth since we no longer need it
-rm(tax_meth)
 ```
 
 Although this line seemed promising, the dataset did not have many samples which were outside of the lines of eliminating cross-section (unknown CH4 levels, unclassified order, and/or 0 abundance in the sample).
 Taking that into account we can look closer into "Methylococcales", "Methylomirabilales" and "Methanosarciniales".
 However, even these three do not provide a robust correlation.
 
-```{r}
+```{r meth-mean}
 # the same filtering as above
 asv_table[which(rownames(asv_table) %in% tax_meth$asv ),] %>% 
   rownames_to_column("asv") %>% 
@@ -617,18 +631,25 @@ ggplot(aes(x = Mean_CH4 , y = abund)) +
   geom_smooth(method = "lm", se= FALSE, color = "black") +
   facet_wrap(~ Order, scales = "free_y") + 
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
-               label.y = "top",
-               size = 3)
+               label.y = "top", small.r = TRUE,
+               size = 3) +
+  labs(y="Abundances (absolute 16S counts)",
+       x= "Mean methame levels")
 
 ```
 
 # Temperature-related abundance trends
 
+After looking at alpha diversity for the temperature categories, and compositional differences per temperature categoires at class level,  here there is more mining for trends at lower taxonomic levels.
+
+Since there is a lot of unclassified ASVs on lower taxonomic levels, order was esteemed low enough without losing too much information.
+
+
 ## Linear
 
-We do it again at the phylogenetic level of order.
+Searching for the significant linear trend between abundances and temperature:
 
-```{r}
+```{r lin-order}
 
 # 1. clean taxonomy
 tax_table %>% rownames_to_column("asv") %>%   
@@ -679,6 +700,7 @@ data_for_temp %>%
 # remove unclassified  
  dplyr::filter(Order != "Unclassified") %>% 
  dplyr::select("Order")  -> corr_orders
+#  this dataset now contains only the orders which exhibit sign corr.
     
 
 data_for_temp [which(data_for_temp$Order %in% corr_orders$Order),
@@ -690,22 +712,27 @@ ggplot(aes(x = Temp , y = abund)) +
   facet_wrap(~ Order, scales = "free_y") + 
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "top", small.r = TRUE,
-               size = 3)
+               size = 3)+
+  labs(y="Abundances (absolute 16S counts)",
+       x= "Temperature [°C]")
 
 
 ```
 
 Although there are certain significant correlations of order abundance and temperature, the results get less clear when the regression formula is used.
-This could be a result of non-parametric methods, like correlation, being generally less affected by outliers.
+This could be a result of non-parametric methods, like the  correlation we used, being generally less affected by outliers.
+
 The only order I would be comfortable claiming shows dependence would be the "Candidatus Roizmanbacteria".
+
 
 ## By category
 
-We start with the 157 orders (orders found in 40+ sasmples), and their abundances and temperature measures.
-Instead of using the otherwise present temperature categorisation with 2°C steps, new categorization was done with 0-13-16-16+ temperatures, since \~50% of data points is within the 13-16 range.
+We start with the 157 orders (selected orders that were found in 40+ samples), and their abundances and temperature measurements.
+Instead of using the otherwise present temperature categorization with 2 °C steps, new categorization was done with 0-13-15-15+ temperatures, since \~50% of data points is within the 13-16 range.
 This way the cold and warm extreme is on either side of the 13-16 spectrum.
 
-```{r}
+```{r anova-13-15}
+# add >13-15< categorization
 data_for_temp %>% dplyr::select(!c("n", "samples")) %>% 
   mutate(temp_cat = case_when(Temp <13 ~ "cold",
                               Temp >15 ~ "hot", 
@@ -721,7 +748,7 @@ data_for_temp %>% dplyr::select(!c("n", "samples")) %>%
 # choose only significant
  dplyr::filter(p<0.05) %>% 
  dplyr::select("Order")  -> corr_orders_group
- 
+#  this dataset now contains only the orders which exhibit sign diff.
  
 data_for_group [which(data_for_group$Order %in% corr_orders_group$Order),
                c("Order", "abund",  "temp_cat")] %>% 
@@ -733,17 +760,17 @@ ggplot(aes(x = temp_cat , y = abund)) +
   scale_x_discrete(limits = c("cold", "mid", "hot")) +
   scale_fill_manual(values = c("lightblue", "#d7301f", "#fdbb84")) +
   theme(legend.position = "none") + 
-  labs(y = "Abundance (counts from the sequencing)",
-       x = "Temperature")
+  labs(y = "Abundances (absolute 16S counts)",
+       x = "Temperature [°C]")
 
 ```
 
-When looking at the groups there is still an upwards trend in the Candidatus Roizmanbacteria, butnow there is also significant difference in the Desulfobacterales order.
+When looking at the groups there is still an upwards trend in the Candidatus Roizmanbacteria, but now there is also significant difference in the Desulfobacterales order.
 There is a downwards trend in Microtrichales, and Legionallales.
 
 We can try to do a post-hoc test to see if it is significant.
 
-```{r}
+```{r post-hoc}
 
 data_for_group %>% 
  group_by(Order) %>% 
@@ -756,36 +783,47 @@ data_for_group %>%
 
 Desulfobacterales do indeed have a significantly different abundance between the cold and hot samples, as do the Candidatus Roizmanbacteria and Microtrichales.
 
+
 # Beta diversity
+
+The rate of dissimilarity by temperature categories and aquifer type checked at genus level, which was deemed low enough taxonomy level, while not losing many unclassified species. 
 
 ## Temperature distribution
 
-```{r nmds-temp}
+An nmds ordination is done with abundances summed at the genus level, and distances calculated, with a hellinger-transformed data, to account for the compositionality of data.
+
+```{r nmds-temp, results='hide'}
 # tax clean
 tax_table %>% rownames_to_column("asv") -> tax_tab
 
 # aggregate to genus level
 asv_table %>% 
   rownames_to_column("asv") %>% 
-  pivot_longer(cols = -asv, names_to = "samples", values_to = "abundances") %>% 
+  pivot_longer(cols = -asv, names_to = "samples", 
+               values_to = "abundances") %>% 
   left_join(., tax_tab, by = "asv") %>% 
   dplyr::select("samples", "Genus", "abundances") %>% 
   group_by(samples,  Genus) %>% 
   summarise(sum(abundances)) %>% 
   ungroup() %>% 
   replace_na(list(Genus ='Unclassified' )) %>%
-  pivot_wider(names_from = "samples", values_from = "sum(abundances)") %>% 
+  pivot_wider(names_from = "samples", 
+              values_from = "sum(abundances)") %>% 
   column_to_rownames("Genus") -> asv_aggregated
 
 
 
-# do an ordination
-sp.dist <-  vegdist(decostand( t(asv_aggregated),  method = "hellinger") )
+# do an ordination with a hellinger transformation 
+sp.dist <-  vegdist(decostand( t(asv_aggregated),
+                               method = "hellinger") )
+
 # or without the transformation
 # sp.dist <-  vegdist(t(asv_aggregated))
 nmds <- metaMDS(sp.dist, k = 2, autotransform = FALSE)
 
 ```
+
+Communities of high temperature samples are more dispersed (more dissimilar between themselves) tham the cold and average-temperature samples.
 
 ```{r nmds-plot}
 
@@ -797,11 +835,17 @@ nmds_plot <- as.data.frame(nmds$points) %>%
   ggplot(aes(x=MDS1,y=MDS2) ) +
   geom_point(aes( fill= cat), shape = 21, 
              size = 4, alpha = 0.6, stroke = 0.5) +  
+# coloring  
   scale_color_manual(values=pal3) +
   scale_fill_manual(values=pal3) +
-  annotate(geom="text",x=0.8, y=0.7, label="stress =", color="black") +   
-  annotate(geom="text", x=1.1, y=0.7, label=round(nmds$stress,4), color="black") +
+# add stress value
+  annotate(geom="text",x=0.8, y=0.7, 
+           label="stress =", color="black") +   
+  annotate(geom="text", x=1.1, y=0.7, 
+           label=round(nmds$stress,4), color="black") +
+# ellipse  
   stat_ellipse(aes(colour = cat), linewidth = 0.4) + 
+# visual parameters 
   theme(legend.background = element_blank(),
         legend.box.background = element_rect(colour = "gray")) +
   labs(fill = "Temperature \ncategory") +
@@ -813,26 +857,28 @@ nmds_plot
   
 ```
 
-test ordination
+Test whether there is significant differences between the communities of the different temperature categories: 
 
 ```{r nmds-test}
 
-# 1. test dispersion as an assumption (variance test for multivariate statitics)
+# 1. test dispersion as an assumption 
+# (variance test for multivariate statitics)
 disp <- betadisper( sp.dist, metadata$category ) 
 
-#p>0.05 is what we need - homogenous variances
+# p>0.05 is what we need - homogenous variances
 anova(disp) #no sign. differences in dispersion
 # if there was sign, i would check with this which one are they
 # TukeyHSD(disp) 
 
 
 
+
 # 2. now test actual ordination
-# test differences in group centroid with adonis (anova version for multivariate statistics)
+# test differences in group centroid with adonis 
+# (anova version for multivariate statistics)
 permanova <- adonis2(sp.dist ~ metadata$category, na.action = na.omit,
                     method = "bray" , permutations = 999)
 permanova # not sign.
-
 
 
 # if it was significant i would test which groups are significantly different
@@ -841,7 +887,12 @@ permanova # not sign.
 
 ```
 
+The temperature categories are not a sensical grouping for the microbial communities, as seen from the ordination plot and testing statistic.
+
+
 ## Spatial distribution
+
+The approach to checking whether geographical position impacts the microbial community adapted from: https://jkzorz.github.io/2019/07/09/scatter-plots.html 
 
 ```{r beta-spatial}
 # data with only the coordinates known
@@ -892,7 +943,14 @@ ggplot(matr, aes(y = gg, x = aa)) +
 
 ```
 
+
+There is no linear (nor non-linear) relationship between the geographical distance and the community dissimilarity, implying that physical separation is not a factor with microbial communities of Vienna.
+
+
 ## Aquifer distribution
+
+Since the main focus of the study lies in temperature categories,  we did not plot an ordination based on the aquifer type, but we tested to see whether it is an impactful factor.
+
 
 ```{r beta-aquifer}
 
@@ -923,6 +981,9 @@ permanova # not sign
 
 
 ```
+
+The results show no significant impact of the aquifer type on the microbiome.
+
 
 # Environmental data
 
