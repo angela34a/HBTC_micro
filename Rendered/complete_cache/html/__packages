@@ -20,6 +20,7 @@ ggpubr
 MASS
 ggfortify
 ggrepel
+knitr
 mapview
 sf
 geosphere
