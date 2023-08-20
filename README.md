@@ -15,5 +15,5 @@ The subfolder Donauschotter contains a subset of data and analysis performed on 
 "complete.Rmd" file with all the code combined
 
 
-Rendered html versions can be also found at link: https://rpubs.com/angela34a/1071826 (WIP)
+Rendered html versions can be also found at link: https://rpubs.com/angela34a/1073088
 
