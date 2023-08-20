@@ -817,7 +817,7 @@ nmds <- metaMDS(sp.dist, k = 2, autotransform = FALSE)
 
 ```
 
-Communities of high temperature samples are more dispersed (more dissimilar between themselves) tham the cold and average-temperature samples.
+Communities of high temperature samples are more dispersed (more dissimilar between themselves) than the cold and average-temperature samples.
 
 ```{r nmds-plot}
 
@@ -1038,7 +1038,7 @@ pca_plot
 ```
 
 The first three principal components explain 57% of the environmental variance in data.
-High temperature samples vary in most of the measured variables, while te extremely cold samples mostly differ along the pH spectrum.
+High temperature samples vary in most of the measured variables, while the extremely cold samples mostly differ along the pH spectrum.
 
 ```{r pca-importance}
 summary(pca_env)$importance %>% 
@@ -1103,7 +1103,7 @@ The first PC mostly consist of variations in conductivity and mineral ions, as w
 
 The second PC consists of DOC, DIC and oxygen levels, as well as, to a certain extent, the PO4 and NO3 concentrations.
 
-The third PC conists of the well depth variation.
+The third PC consists of the well depth variation.
 
 To see how the environmental variables and their communities vary, we lay both ordinations side by side:
 
@@ -1169,6 +1169,7 @@ env_vars_low_vif <- vif.cca(simpleRDA) %>%
                     dplyr::rename("env" = ".") %>% 
                     dplyr::filter(env < 10) 
 
+# make new environmental data with only low vif variables
 df_alpha[,which(colnames(df_alpha) %in%  rownames(env_vars_low_vif) )] -> env.dat
 
 
@@ -1266,7 +1267,7 @@ It is the Donauschotter aquifer which spans over a big portion of Vienna and has
 
 For the spring campaign, additional categorizations and measurements were performed, so the subset is not only constrained to the DS aquifer type, but also to the spring samples.
 
-There is now the information on the wastewater impact, redox phase and heat source effect for each sample, as well as heavy metal measurements.
+There is now the information on the waste water impact, redox phase and heat source effect for each sample, as well as heavy metal measurements.
 
 ```{r ds-prep}
 # already added the needed data in load data chunk
@@ -1452,12 +1453,17 @@ spring_data_additional %>%
 
 Shannon's diversity index shows significant regression to Ni, Ag and CH4, however the individual regressions do not provide satisfactory godness-of-fit, especially for the methane.
 
-One final check with all the variablesn and only the DS subset.
+One final check with all the variables included and only the DS subset.
 
-```{r}
+```{r alpha-mlr}
 spring_data_additional %>% 
-  dplyr::select("ens", "Al", "Cr", "Fe_57", "Ni", "Cu", "Zn", 
-                "As", "Ag", "Cd", "Hg", "Pb", "Mean_CO2", "Mean_CH4") %>% 
+  dplyr::select(where(is.numeric)) %>% 
+   dplyr::select(-c("NH4", "S",      # many NAs
+            "X", "Y",                # coordinates
+            "N15_NO3", "O18_NO3",    # many NAs
+            "CH4",                   # remove raw, keep sdCH4
+            "d13_CO2")            
+            ) %>% 
   na.omit() %>% 
   scale(center = T, scale = T) %>% 
   as.data.frame() -> df_spring_all
@@ -1483,6 +1489,89 @@ step.model<- MASS::stepAIC(fullModel, # start with a model containing no variabl
                     direction = 'both', # run forward selection
                     trace = 0) # dont show step-by-step process of model selection
 
-#summary(step.model) # none
-RsquareAdj(step.model) # <2%
+# summary(step.model) 
+# none sign, but intATP borderline
+RsquareAdj(step.model) # 7%
 ```
+
+Adding metals and isolating the DS subset did not provide a satisfactory fit, even for the multiple regression.
+
+## Communities in relation to metals
+
+Communities -\> one final check with all the variables included and only the DS subset
+
+```{r constrained-metals}
+# env clean
+# df_spring_all - already scaled and selected the important variables
+
+# aggregate to genus
+# asv_aggregated - already done for nmds
+ 
+# asv clean
+# because some samples get removed because of NAs 
+# and we need only the spring samples
+asv_aggregated [, which  ( colnames(asv_aggregated) %in% 
+                             rownames(df_spring_all)) ] -> sp.dat
+
+# transform hellinger (or clr sometimes)
+decostand(sp.dat, method = "hellinger") -> sp.dat
+#clr(sp.dat) -> sp.dat
+
+# 1. first model
+simpleRDA <- capscale(t(sp.dat) ~  ., data = df_spring_all ,
+                 distance = "bray",
+                 scaling = "sites")
+# take only that are vif<10
+env_vars_low_vif <- vif.cca(simpleRDA) %>% 
+                    as.data.frame() %>% 
+                    dplyr::rename("env" = ".") %>% 
+                    dplyr::filter(env < 10) 
+
+# make new environmental data with only low vif variables
+df_spring_all[,which(colnames(df_spring_all) %in%  
+                       rownames(env_vars_low_vif) )] -> env.dat
+
+
+# 2. model without them
+simpleRDA <- capscale(t(sp.dat) ~  ., 
+                      data=  env.dat ,
+                 distance = "bray",
+                 scaling = "sites")
+
+
+# test all variables and axes
+# canonical axes
+anova.model <- anova.cca(simpleRDA, by='axis', step=1000)  
+# no axes sign
+
+# the whole model
+anova.model2 <- anova.cca(simpleRDA, step=1000) #is sign
+RsquareAdj(simpleRDA)$adj.r.squared # and explains <3%
+
+# env parameters
+anova.model3 <- anova(simpleRDA, step=1000, by = "term") 
+# none sign
+anova.model3
+```
+
+This has not provided an impactful insight , either.
+
+# Conclusion
+
+Few things we can claim with certainty are:
+
+-   there is some indication of decreasing Shannon diversity with increasing temperatures, although this is not supported by significance.
+
+-   the Schichtwasser aquifer shows an increase in diversity with a temperature increase (p\<0.05)
+
+-   none of the measured variables are able to provide good fit for the diversity pattern
+
+-   the taxonomic composition of all temperature categories does not vary greatly, and in each it is Nanoarchaea that is dominant
+
+-   methane-processing microorganisms were not clearly correlated to the methane levels
+
+-   there is indication that *Candidatus Roizmanbacteria*, *Desulfobacterales*, *Microtrichales*, and *Legionallales* exhibit dependence with temperature, which is somewhat supported by significance
+
+-   there is no distinct clustering by temperature in terms of microbial communities, but the higher the temperature the bigger the dissimilarity/turnover of the sample communities
+
+-   there is indication that diversity is more impacted by the waste water and heavy metals (possible pollution), than temperature
