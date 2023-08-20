@@ -1,159 +1,231 @@
-shannondiv <- vegan::diversity(t(srs_asv_all))
+# color palettes ####
+pal3 = c("#253494", "#225ea8", "#1d91c0", "#7fcdbb" , 
+         "#fdbb84", "#d7301f", "#7f0000", "gray")
+
+# for easier uniform plotting of categories 
+name_vector <- c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
+                  "16-18",  "18-20",  "20<" )
+
+
+# calcute ####
+# calculate Shannon's index with vegan
+shannondiv <- vegan::diversity(t(asv_table))
+# turning Shannon to effective number of species 
+# to be more comparable across studies 
 ens <- exp(shannondiv)
 
-p1_en <- cbind(as.data.frame(ens), as.factor(new_metadata$category)) %>% 
+
+p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>% 
   as.data.frame() %>%
-  rename("div"= "ens","temp"="as.factor(new_metadata$category)") %>%
-  filter(div > 0) %>% 
-  ggplot( aes(x = temp, y = div, fill = temp, color=temp)) +
-  #stat_boxplot(geom ='errorbar') + 
-  geom_boxplot(alpha=0.5) +
-  scale_fill_manual(values = pal3)+
-  scale_color_manual(values = pal3)+
-  theme_bw()+
+  rename("div"= "ens",
+         "temp"="as.factor(metadata$category)") %>%
+  filter(temp != "NA") %>% 
+
+# plot  
+  ggplot( aes(x = temp, y = div, fill = temp)) +
+  geom_jitter(width = 0.2, size = 3, shape=21, aes(fill = temp) ) +
+  geom_boxplot(alpha=0.5, outlier.shape = NA) +
+  # add custom palette  
+  scale_fill_manual(values = pal3) +
+  # make  the figure more readable  
   theme(legend.position = "none",
         axis.title=element_text(size=14,face="bold"),
         axis.text.y = element_text(size=10,face="bold"),
         axis.text.x = element_text(angle = 90)) +
   labs(x = "Temperature category",
-       y = "Shannon diversity index") +
-  scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
-                               "16-18",  "18-20",  "20<" ))  
+       y = "Shannon diversity index",
+       title = "Diversity by temp. category") +
+  scale_x_discrete(limits = name_vector)  
 
 p1_en
 
 
 
-# since there is only 1 sample in the 20< i must remove it before testing
-data_for_alpha <- cbind( as.data.frame(ens), new_metadata$category) %>% 
-  filter(new_metadata$category != "20<") %>% 
-  rename("category" = "new_metadata$category")
+# test ####
+
+# 1. assumption - normal distribution: 
+# Each population to be compared should be normally distributed 
+
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  group_by(cat) %>% 
+  do(tidy(shapiro.test(.$ens))) %>% 
+  dplyr::filter(p.value <0.06)
+
+# I would rather do a non-parametric test
+# since >20 borders not normally distributed
 
 
-# perform ANOVA?
-## 1. assumption: Normal distribution: 
-## Each population to be compared should be normally distributed (NOT THE ENTIRE DATASET).
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "<10"), "ens"] )
-# W = 0.89814, p-value = 0.3997
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "10-12"), "ens"] )
-# W = 0.77218, p-value = 0.04715 !!!
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "12-14"), "ens"] )
-# W = 0.97895, p-value = 0.4823
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "14-16"), "ens"] )
-# W = 0.9595, p-value = 0.05755
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "16-18"), "ens"] )
-# W = 0.93248, p-value = 0.1543
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "18-20"), "ens"] )
-# W = 0.58055, p-value = 0.0003393 !!!
-shapiro.test (  data_for_alpha[which(data_for_alpha$category == "ref_cat"), "ens"] )
-# W = 0.981, p-value = 0.9642
 
-# would be better to do a non-parametric test
+# 2. assumption - homogeneity of variance: 
+# Variance in the populations compared should be the same/similar. 
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  levene_test(ens ~ cat) %>% 
+  dplyr::select("p") 
 
-## 2. assumption: Homogeneity of variance: 
-## Variance in the populations compared should be the same/similar. 
-bartlett.test(ens ~ category, data= data_for_alpha)
-# Bartlett's K-squared = 0.94125, df = 6, p-value = 0.9877
+
 # assumption met
+# but irrelevant
+# do non-parametric anova
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  kruskal_test(ens ~ cat)
+# significant difference between groups
 
-kruskal.test (ens ~ category, data= data_for_alpha) 
-# Kruskal-Wallis chi-squared = 11.995, df = 6, p-value = 0.06208
+
+# do post-hoc to see which
+cbind( as.data.frame(ens), metadata$category) %>%
+  rename("cat" = "metadata$category" ) %>% 
+  filter(cat != "NA") %>% 
+  dunn_test(ens ~ cat) %>% 
+  dplyr::filter(p.adj < 0.05)
+# post-hoc does not show individual difference
+# so no adding to the plot
 
 
-library(afex) ## to run ANOVA
 
-alph <- cbind(as.data.frame(ens), as.factor(new_metadata$category)) %>% 
+# linear trend ####
+
+p1_en_li <- cbind(as.data.frame(ens), metadata$Temp) %>% 
   as.data.frame() %>%
-  rename("div"= "ens","temp"="as.factor(new_metadata$category)") 
-
-ggbetweenstats( data  = alph, x = temp, y = div,
-                type = "np",
-                xlab = "Temperature category", 
-                ylab = "Shannon diversity index",
-                ggtheme = ggplot2::theme_classic(),
-                title = "Comparison of microbial diversity across temperature increase",
-                #boxplot.args = list(width = 0),
-                #violin.args = list(width = 3, alpha = 4),
-                point.args = list(position = ggplot2::position_jitterdodge
-                                  (dodge.width = 1), alpha = 0.4, 
-                                  size = 3, stroke = 2, na.rm = TRUE),
-                var.equal = TRUE) + 
+  rename("div"= "ens","temp"="metadata$Temp") %>%
+  filter(temp != "NA") %>% 
   
-  ggplot2::scale_x_discrete(limits = c( "ref_cat", "<10", "10-12", "12-14", "14-16", 
-                                        "16-18",  "18-20",  "20<" )) +
-  ggplot2::scale_color_manual(values=pal3)
-
-
-# linear trend 
-p1_en_li <- cbind(as.data.frame(ens), new_metadata$Temp) %>% 
-  as.data.frame() %>%
-  rename("div"= "ens","temp"="new_metadata$Temp") %>%
+  # plot
   ggplot(aes(temp,div)) + 
-  geom_point(shape=21) + 
-  geom_smooth(method = "lm", se= FALSE, color = "blue") + 
-  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), label.y = "bottom") + 
-  theme_bw() + 
-  labs(y = "Shannon diversity index", x ="Temperature")
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.6) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") + 
+  ggpmisc::stat_poly_eq(use_label(c("adj.R2", "p")), 
+                        label.y = "top", size = 4,
+                        small.p = TRUE) + 
+  labs(y = "Shannon diversity index", x ="Temperature", 
+       title = "Linear trend in diversity index") +
+  theme(legend.position = "none",
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(angle = 90)) 
 
 p1_en_li
 
 
-# spatial distribution
+
+# spatial distribution ####
 
 # add mapview to change X and Y to standard crs
-new_metadata2 <- new_metadata %>% 
-  cbind(new_metadata, as.data.frame(ens)) %>% 
-  dplyr::select("ens", "X", "Y") %>% drop_na() %>% 
+new_metadata2 <- metadata %>% 
+  cbind(., as.data.frame(ens)) %>% 
+  filter(Temp != "NA") %>% 
+  # add small value to coordinates for one of the campaigns
+  # so they do not overlap completely on the map  
+  mutate(X = ifelse(grepl("fall", sample_season) , X + 45, X)) %>% 
+  dplyr::select("ens", "X", "Y") %>% 
+  drop_na() %>% 
   mutate( ens_cat = cut(ens, b=6) )  
+
 
 pal <-  mapviewPalette("mapviewSpectralColors")
 
 sf_data <- st_as_sf(new_metadata2, coords = c("X", "Y"),  crs = 31253)
 mapview(sf_data,  map.types = "Stamen.Terrain", col.regions = pal(10),
-        zcol= "ens_cat", zoom = 12, color="black", cex = 4, alpha = 0.9 ) 
+        zcol= "ens_cat", zoom = 12, color="black", 
+        cex = 5, alpha = 0.7 ) 
 
 
-# aquifer distributuion
 
 
-# ANY AQUIFER THAT HAS MORE THAN 5 POINTS
-cbind(new_metadata, ens ) %>% 
+
+# aquifer distribution ####
+
+
+cbind( metadata, ens ) %>% 
+  # filter out aquifers that have less than 5 sample points 
   dplyr::filter(! Geol_beb %in%  c("n.b.", "lokaler Aquifer",
-                                   "Wiental", "Zubringer")) %>% 
-  mutate(Geol_beb = case_when( grepl('DS', Geol_beb) ~ "Donauschotter", 
-                               TRUE ~ Geol_beb)) %>% 
+                                   "Wiental", "Zubringer", "OF")) %>% 
+  # do not differentiate between the different Donauschotter samples 
+  mutate(Geol_beb = case_when( 
+    grepl('DS', Geol_beb) ~ "Donauschotter", 
+    TRUE ~ Geol_beb)) %>% 
+  dplyr::select("ens", "Geol_beb", "Temp") %>% 
+  na.omit() %>% 
+  # plot
   ggplot(aes(x=Temp, y=ens)) + 
-  geom_point(shape=21, size = 2) + 
-  geom_smooth(method = "lm", se= FALSE, color = "blue") + 
-  facet_wrap(~ Geol_beb, scales = "free") + 
-  #stat_poly_line() +
-  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), label.y = "bottom",
-               size = 3.4) + 
-  theme_bw() + 
-  labs(x = "Temperature",
-       y = "Effective number of species") 
+  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") +
+  facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
+  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+               label.y = "bottom", small.p = TRUE,
+               size = 3) + 
+  labs(x = "Temperature [°C]",
+       y = "Sshannon's diversity index") +
+  theme(axis.title.x = element_text(hjust = 0), 
+        legend.position = "none",
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(angle = 90),
+        strip.text = element_text(size = 12))
 
 
-# modelling 
-
-data_for_reg <- cbind(new_metadata) %>% dplyr::select(where(is.numeric)) %>% 
-  scale(center = T, scale = T) %>% cbind(., ens) %>% data.frame() %>% 
-  dplyr::select(! c("DIC", "SO4", "Cl", "Na", "Ca", "Mg", "Lf",
-                    "NO3", "NH3", "Fe", "X", "Y", "DOM_bix") )
 
 
-nullModel = lm(ens ~ 1, data=data_for_reg) # model with the intercept only
-fullModel = lm(ens ~ ., data=data_for_reg) # model with all  variables
+# individual regressions ####
+
+df_alpha <- metadata %>%  
+  cbind(as.data.frame(ens)) %>% 
+  dplyr::select(where(is.numeric)) %>% 
+  dplyr::select(-c("NH4", # many NAs
+                   "X", "Y")) %>% # coordinates
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame()
+
+
+# remove the highly correlated ones
+cor_matrix <- cor(df_alpha)
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
+df_alpha <- df_alpha[, -highly_correlated] 
+
+# run individual regressions for each variable
+varlist <- names(df_alpha)[-19]
+models <- lapply(varlist, function(x) {
+  form <- formula(paste("ens ~", x))
+  lm(form, data=df_alpha)
+})
+# tidy up the results
+lapply(models, function(x) tidy(x)) %>% bind_rows() -> ind_models
+ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
+# none are sign
+
+
+
+
+# multiple linear regression ####
+
+fullModel = lm(ens ~ ., data=df_alpha) # model with all  variables
+
+# remove high vif variables
+car::vif(fullModel)  %>% as.data.frame() %>% 
+  dplyr::rename("vif"=".") %>% 
+  filter(vif<10)  %>% 
+  rownames_to_column("envs") %>% 
+  dplyr::select("envs")  -> colnames
+
+df_alpha2 <- df_alpha %>% dplyr::select("ens", 
+                                        which(colnames(df_alpha) %in% colnames$envs ))
+
+fullModel = lm(ens ~ .  , data = df_alpha2) # model with all  variables
+
 
 #choose
-step.model<-stepAIC(fullModel, # start with a model containing no variables
-                    direction = 'both', # run forward selection
-                    trace = 0) # dont show step-by-step process of model selection
-#summary(step.model) # DOC, K, Depth
-RsquareAdj(step.model) # 0.043-> 4.3 %
-summary(lm(ens ~ DOC + K + Depth, data = data_for_reg)) 
+step.model<- MASS::stepAIC(fullModel, # start with a model containing no variables
+                           direction = 'both', # run forward selection
+                           trace = 0) # dont show step-by-step process of model selection
+
+#summary(step.model) # none
+RsquareAdj(step.model) # <2%
 
 
-plot(ens ~ DOC , data = data_for_reg) + abline(lm(ens ~ DOC , data = data_for_reg))
-plot(ens ~  K , data = data_for_reg)+ abline(lm(ens ~ K , data = data_for_reg))
-plot(ens ~  Depth, data = data_for_reg) + abline(lm(ens ~ Depth , data = data_for_reg))
+
