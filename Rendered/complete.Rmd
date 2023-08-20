@@ -162,7 +162,6 @@ Testing if the distribution of alpha diversity per temperature categories is sig
 
 To perform ANOVA, the assumption of normality and homoscedasticity were checked.
 
-
 ```{r alpha-test}
 
 # 1. assumption - normal distribution: 
@@ -210,10 +209,7 @@ cbind( as.data.frame(ens), metadata$category) %>%
 
 ```
 
-
-<<<<<<< HEAD
-Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
-
+\<\<\<\<\<\<\< HEAD Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
 
 ```{r alpha-lin}
 
@@ -374,14 +370,16 @@ RsquareAdj(step.model) # <2%
 
 ```
 
-There is still no significant effect, even a combined one. Next step would be to go beyond the analysis by numeric and categorical variables (aquifer categorization), respectively, and try to go for an interplay of both categorical and numeric variables. To be done later. 
-
+There is still no significant effect, even a combined one.
+Next step would be to go beyond the analysis by numeric and categorical variables (aquifer categorization), respectively, and try to go for an interplay of both categorical and numeric variables.
+To be done later.
 
 # Composition
 
 The taxonomic composition by temeprature categories was done in form of barplot and bubble plot, and defined numerically.
 
-No immediate difference can be seen. Nanoarchaea visibly the most abundant clalss in each category.
+No immediate difference can be seen.
+Nanoarchaea visibly the most abundant clalss in each category.
 
 ## Bar plot
 
@@ -500,7 +498,6 @@ data %>%
 For all categories, the most prevailing class was Nanoarchaeia, from the Archaea domain (33.3% ± 3.34% across all categories).
 The most abundant class from the Bacteria domain was Omnitrophia (8.19% ± 2.13%), and the fourth most abundant class overall also belonged to the Archaea domain - Nitrososphaeria (5.44% ± 1%).
 From the phylum Proteobacteria, the most abundant class was Gammaproteobacteria (6.2% ± 1.28%).
-
 
 ```{r mean-sd}
 
@@ -640,10 +637,9 @@ ggplot(aes(x = Mean_CH4 , y = abund)) +
 
 # Temperature-related abundance trends
 
-After looking at alpha diversity for the temperature categories, and compositional differences per temperature categoires at class level,  here there is more mining for trends at lower taxonomic levels.
+After looking at alpha diversity for the temperature categories, and compositional differences per temperature categoires at class level, here there is more mining for trends at lower taxonomic levels.
 
 Since there is a lot of unclassified ASVs on lower taxonomic levels, order was esteemed low enough without losing too much information.
-
 
 ## Linear
 
@@ -720,10 +716,9 @@ ggplot(aes(x = Temp , y = abund)) +
 ```
 
 Although there are certain significant correlations of order abundance and temperature, the results get less clear when the regression formula is used.
-This could be a result of non-parametric methods, like the  correlation we used, being generally less affected by outliers.
+This could be a result of non-parametric methods, like the correlation we used, being generally less affected by outliers.
 
 The only order I would be comfortable claiming shows dependence would be the "Candidatus Roizmanbacteria".
-
 
 ## By category
 
@@ -783,10 +778,9 @@ data_for_group %>%
 
 Desulfobacterales do indeed have a significantly different abundance between the cold and hot samples, as do the Candidatus Roizmanbacteria and Microtrichales.
 
-
 # Beta diversity
 
-The rate of dissimilarity by temperature categories and aquifer type checked at genus level, which was deemed low enough taxonomy level, while not losing many unclassified species. 
+The rate of dissimilarity by temperature categories and aquifer type checked at genus level, which was deemed low enough taxonomy level, while not losing many unclassified species.
 
 ## Temperature distribution
 
@@ -857,7 +851,7 @@ nmds_plot
   
 ```
 
-Test whether there is significant differences between the communities of the different temperature categories: 
+Test whether there is significant differences between the communities of the different temperature categories:
 
 ```{r nmds-test}
 
@@ -889,10 +883,9 @@ permanova # not sign.
 
 The temperature categories are not a sensical grouping for the microbial communities, as seen from the ordination plot and testing statistic.
 
-
 ## Spatial distribution
 
-The approach to checking whether geographical position impacts the microbial community adapted from: https://jkzorz.github.io/2019/07/09/scatter-plots.html 
+The approach to checking whether geographical position impacts the microbial community adapted from: <https://jkzorz.github.io/2019/07/09/scatter-plots.html>
 
 ```{r beta-spatial}
 # data with only the coordinates known
@@ -943,14 +936,11 @@ ggplot(matr, aes(y = gg, x = aa)) +
 
 ```
 
-
 There is no linear (nor non-linear) relationship between the geographical distance and the community dissimilarity, implying that physical separation is not a factor with microbial communities of Vienna.
-
 
 ## Aquifer distribution
 
-Since the main focus of the study lies in temperature categories,  we did not plot an ordination based on the aquifer type, but we tested to see whether it is an impactful factor.
-
+Since the main focus of the study lies in temperature categories, we did not plot an ordination based on the aquifer type, but we tested to see whether it is an impactful factor.
 
 ```{r beta-aquifer}
 
@@ -984,8 +974,9 @@ permanova # not sign
 
 The results show no significant impact of the aquifer type on the microbiome.
 
-
 # Environmental data
+
+To see whether there is certain patterns in the environmental variables, and which of them act in accordance to each other.
 
 ```{r env-data}
 # as done before:
@@ -1009,6 +1000,10 @@ pca_env <- prcomp(df_alpha, scale = FALSE)
 biplot(pca_env)
 
 ```
+
+Both the fall and spring measurement of the 6-12 groundwater well jump out.
+Since they are outliers in both campaigns, we are inclined to believe it is not a sampling error.
+However, it is not easy to immediately see why this location would have such a heightened DOC.
 
 ```{r pca-plot}
 
@@ -1043,8 +1038,7 @@ pca_plot
 ```
 
 The first three principal components explain 57% of the environmental variance in data.
-We can see that neither this simplification yields as clear results as sometimes obtained.
-It is not surprising that the communties nmds gives unclear patterns, as well.
+High temperature samples vary in most of the measured variables, while te extremely cold samples mostly differ along the pH spectrum.
 
 ```{r pca-importance}
 summary(pca_env)$importance %>% 
@@ -1052,7 +1046,7 @@ summary(pca_env)$importance %>%
   dplyr::select("PC1", "PC2", "PC3", "PC4")
 ```
 
-Let us see which variables vary together (group together in which component):
+Let us see which variables vary together (i.e. which variables group together into a principal component):
 
 ```{r pca-loadings}
 # Extract the loadings from the PCA result and convert to tidy format 
@@ -1105,6 +1099,14 @@ ggplot( aes(x = reorder(column, -value), y = value, group = factor(column))) +
 plot_pca1 + plot_pca2 + plot_pca3
 ```
 
+The first PC mostly consist of variations in conductivity and mineral ions, as well as pH, which is why the cold samples fall away from the extremely hot ones along the x-axis.
+
+The second PC consists of DOC, DIC and oxygen levels, as well as, to a certain extent, the PO4 and NO3 concentrations.
+
+The third PC conists of the well depth variation.
+
+To see how the environmental variables and their communities vary, we lay both ordinations side by side:
+
 ```{r nmds-pca-plot}
 nmds_plot2 <-  as.data.frame(nmds$points) %>% 
   cbind(., as.factor(metadata$category)) %>% 
@@ -1124,16 +1126,22 @@ pca_plot2 <- pca_plot + theme(legend.position = "none") +
 nmds_plot2 + pca_plot2
 ```
 
-Conclusion: there is no distinct clustering by temperature in terms of microbial communities, but there is two different clusters in terms of environmental conditions: \>10 C samples and 18+ samples are separated along the first PCA axis, which was mostly influenced by pH, and various ions/conductivity.
+Conclusion: there is no distinct clustering by temperature in terms of microbial communities, but the higher the temperature the bigger the dissimilarity/turnover of the sample communities.
+
+There is two different clusters in terms of environmental conditions: \>10 C samples and 18+ samples are separated along the first PCA axis, which was mostly influenced by pH, and various ions/conductivity.
 The pH variation is much more pronounced in the cold samples, than warm ones.
 
-While reference samples show low variation in environmental variables and high difference in communities, the opposite is true for extremely cold samples, which are mostly uniform in all variables except for pH and are quite simmilar community-wise.
+It is possible that the low rate of environmental variation results in low dissimilarity (cold samples), and high variability results in high dissimilarity (warm samples).
+However, it is unexpected that such a stark difference in pH levels of the cold samples would not result in a high dissimilarity, since pH is known to be an important factor with microbial communities.
 
-It is possible that the stress of pH varibility (since pH is known to be a determining factor in composition) selects for resilient organisms, while on the other hand the reference samples allow a more even environment.
+Worth noting is the high environmental homogeneity of the reference samples, which have, on the other hand, high turnover rates.
+A possible theory could be that biotic selection gains more importance in a stable environment, resulting with more stohastic final communties.
+
+Since there is no clear relationships that confirm the importance of temperature for the composition, we continue with constrained ordination, and the search for envrionmental factors other than temperature that could be significant.
 
 ## Constrained ordination
 
-CAP ordination as an distance-based alternative to the RDA (which uses bray, as opposed to RDA's euclidean).
+We use the CAP ordination as an distance-based alternative to the RDA (which uses bray, as opposed to RDA's euclidean).
 Hellinger transformation (square root of relative abundances) is used to account for compositionality of data.
 
 ```{r constraints}
@@ -1251,10 +1259,17 @@ plot_cca
 
 # Donauschotter subset
 
+Since possible impact of the aquifer type was discussed as a confounding variable, a subset that belongs to just one aquifer type was selected.
+It is the Donauschotter aquifer which spans over a big portion of Vienna and has the biggest portion of sampling points.
+
 ## Data preparation
 
+For the spring campaign, additional categorizations and measurements were performed, so the subset is not only constrained to the DS aquifer type, but also to only the spring samples.
+
+There is now the information on the wastewater impact, redox phase and heat source effect for each sample.
+
 ```{r ds-prep}
-# already added the needed data
+# already added the needed data in load data chunk
 
 # I see that there is one duplicated sample, 
 # instead of going back to the data cleaning script I will remove it here
@@ -1281,7 +1296,7 @@ spring_data_additional %>%
          hts_count = as.factor(hts_count)) -> spring_data_additional
 
 
-# add ens
+# add shannon diversity data
 merge(as.data.frame(ens), spring_data_additional, 
       by = "row.names")  -> spring_data_additional
 
@@ -1291,7 +1306,7 @@ spring_data_additional %>%
   column_to_rownames("Row.names") -> spring_data_additional
 ```
 
-## Ens in relation to env vars
+## Diversity in relation to env vars
 
 ```{r ds-uhi}
 # of_beb
@@ -1342,7 +1357,7 @@ p3 <- spring_data_additional %>%
 p1 + p2 + p3
 ```
 
-## Ens in relation to heat islands
+## Diversity in relation to heat islands
 
 ```{r}
 
