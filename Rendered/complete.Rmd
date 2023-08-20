@@ -209,7 +209,7 @@ cbind( as.data.frame(ens), metadata$category) %>%
 
 ```
 
-\<\<\<\<\<\<\< HEAD Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
+Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
 
 ```{r alpha-lin}
 
@@ -631,13 +631,13 @@ ggplot(aes(x = Mean_CH4 , y = abund)) +
                label.y = "top", small.r = TRUE,
                size = 3) +
   labs(y="Abundances (absolute 16S counts)",
-       x= "Mean methame levels")
+       x= "Mean methane levels")
 
 ```
 
 # Temperature-related abundance trends
 
-After looking at alpha diversity for the temperature categories, and compositional differences per temperature categoires at class level, here there is more mining for trends at lower taxonomic levels.
+After looking at alpha diversity for the temperature categories, and compositional differences per temperature categories at class level, here there is more mining for trends at lower taxonomic levels.
 
 Since there is a lot of unclassified ASVs on lower taxonomic levels, order was esteemed low enough without losing too much information.
 
@@ -773,7 +773,8 @@ data_for_group %>%
  ungroup() %>% 
  as.data.frame() %>%    
 # choose only significant
- dplyr::filter(p.adj.signif != "ns")
+ dplyr::filter(p.adj.signif != "ns") %>% 
+ knitr::kable()
 ```
 
 Desulfobacterales do indeed have a significantly different abundance between the cold and hot samples, as do the Candidatus Roizmanbacteria and Microtrichales.
@@ -786,7 +787,7 @@ The rate of dissimilarity by temperature categories and aquifer type checked at 
 
 An nmds ordination is done with abundances summed at the genus level, and distances calculated, with a hellinger-transformed data, to account for the compositionality of data.
 
-```{r nmds-temp, results='hide'}
+```{r nmds-temp, results='hide', message=FALSE}
 # tax clean
 tax_table %>% rownames_to_column("asv") -> tax_tab
 
@@ -860,9 +861,7 @@ Test whether there is significant differences between the communities of the dif
 disp <- betadisper( sp.dist, metadata$category ) 
 
 # p>0.05 is what we need - homogenous variances
-anova(disp) #no sign. differences in dispersion
-# if there was sign, i would check with this which one are they
-# TukeyHSD(disp) 
+anova(disp) # sign. differences in dispersion and we cant take sign, in centroids for granted
 
 
 
