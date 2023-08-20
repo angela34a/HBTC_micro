@@ -1264,9 +1264,9 @@ It is the Donauschotter aquifer which spans over a big portion of Vienna and has
 
 ## Data preparation
 
-For the spring campaign, additional categorizations and measurements were performed, so the subset is not only constrained to the DS aquifer type, but also to only the spring samples.
+For the spring campaign, additional categorizations and measurements were performed, so the subset is not only constrained to the DS aquifer type, but also to the spring samples.
 
-There is now the information on the wastewater impact, redox phase and heat source effect for each sample.
+There is now the information on the wastewater impact, redox phase and heat source effect for each sample, as well as heavy metal measurements.
 
 ```{r ds-prep}
 # already added the needed data in load data chunk
@@ -1306,7 +1306,9 @@ spring_data_additional %>%
   column_to_rownames("Row.names") -> spring_data_additional
 ```
 
-## Diversity in relation to env vars
+## Diversity in relation to env. variables
+
+The distribution of alpha diversity by categories of: surface water impact, redox cascade phase and wastewater impact.
 
 ```{r ds-uhi}
 # of_beb
@@ -1357,7 +1359,12 @@ p3 <- spring_data_additional %>%
 p1 + p2 + p3
 ```
 
+There is certain inclinations that waste water presence impact the diversity negatively, but significance is yet to be checked.
+
 ## Diversity in relation to heat islands
+
+Each sample has been catogorized in relation to a number of heat sources.
+For us the most interesting ones have been the surface sealing, due to its proven impact on groundwater temperatures, and the number of different heat sources that impact each sample.
 
 ```{r}
 
@@ -1385,8 +1392,97 @@ p5 <- spring_data_additional %>%
 p4 + p5
 ```
 
-## Ordination
+No clear difference in diversity based on the surface sealing.
+The median value of the Shannon's diversity is the highest for the samples not impacted by a single heat source, significance yet to be checked.
+
+## Diversity in relation to metals
+
+Now having the heavy metal data, see if there is impact of metals on the communties.
+
+```{r alpha-metal}
+spring_data_additional %>% 
+  dplyr::select("ens", "Al", "Cr", "Fe_57", "Ni", "Cu", "Zn", 
+                "As", "Ag", "Cd", "Hg", "Pb", "Mean_CO2", "Mean_CH4") %>% 
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame() -> df_spring
+ 
+
+# remove the highly correlated ones
+cor_matrix <- cor(df_spring)
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
+# no variables with coeff > 0.9
+
+# run individual regressions for each variable
+varlist <- names(df_spring)[- 1] 
+# remove ens, the independant var
+models <- lapply(varlist, function(x) {
+    form <- formula(paste("ens ~", x))
+    lm(form, data=df_spring)
+})
+# tidy up the results
+lapply(models, function(x) tidy(x)) %>% bind_rows() -> ind_models
+ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
+```
+
+```{r alpha-ni-ag}
+
+spring_data_additional %>% 
+  dplyr::select("ens", "Ni", "Ag", "Mean_CH4") %>% 
+  na.omit() %>% 
+  pivot_longer(cols= -ens, values_to = "values", 
+               names_to = "vars") %>% 
+#plot  
+  
+  ggplot(aes(y=ens, x=values)) + 
+  geom_point(shape=21, size = 3, fill = "violet", 
+             alpha = 0.9, stroke = 0.6) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") + 
+  ggpmisc::stat_poly_eq(use_label(c("adj.R2", "p")), 
+                        small.p = TRUE,
+                        label.y = "bottom", size = 3.4) + 
+  facet_wrap(~vars, scales = "free") + 
+  labs(y = "Shannon diversity index", 
+       x ="Environmental measurements") +
+  theme(legend.position = "none",
+        axis.title = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 90)) 
+```
+
+Shannon's diversity index shows significant regression to Ni, Ag and CH4, however the individual regressions do not provide satisfactory godness-of-fit, especially for the methane.
+
+One final check with all the variablesn and only the DS subset.
 
 ```{r}
-# add metals
+spring_data_additional %>% 
+  dplyr::select("ens", "Al", "Cr", "Fe_57", "Ni", "Cu", "Zn", 
+                "As", "Ag", "Cd", "Hg", "Pb", "Mean_CO2", "Mean_CH4") %>% 
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame() -> df_spring_all
+
+
+fullModel = lm(ens ~ ., data=df_spring_all) # model with all  variables
+
+# remove high vif variables
+car::vif(fullModel)  %>% as.data.frame() %>% 
+  dplyr::rename("vif"=".") %>% 
+  filter(vif<10)  %>% 
+  rownames_to_column("envs") %>% 
+  dplyr::select("envs")  -> colnames
+
+df_spring_all2 <- df_spring_all %>% dplyr::select("ens", 
+                                       which(colnames(df_spring_all) %in% colnames$envs ))
+
+fullModel = lm(ens ~ .  , data = df_spring_all2) # model with all  variables
+
+
+#choose
+step.model<- MASS::stepAIC(fullModel, # start with a model containing no variables
+                    direction = 'both', # run forward selection
+                    trace = 0) # dont show step-by-step process of model selection
+
+#summary(step.model) # none
+RsquareAdj(step.model) # <2%
 ```
