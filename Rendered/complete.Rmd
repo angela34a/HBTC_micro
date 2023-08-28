@@ -202,11 +202,13 @@ cbind( as.data.frame(ens), metadata$category) %>%
 cbind( as.data.frame(ens), metadata$category) %>%
   rename("cat" = "metadata$category" ) %>% 
   filter(cat != "NA") %>% 
-  dunn_test(ens ~ cat) %>% 
+  dunn_test(ens ~ cat, 
+            p.adjust.method = "hochberg") %>% 
   dplyr::filter(p.adj < 0.05)
 # post-hoc does not show individual difference
 # so no adding to the plot
 
+#"holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr"
 ```
 
 Since there is no clear significant difference shown by group, we will try to see if there is a linear trend.
@@ -286,11 +288,11 @@ cbind( metadata, ens ) %>%
   geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
   geom_smooth(method = "lm", se= FALSE, color = "black") +
   facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
-  stat_poly_eq(use_label(c("eq", "adj.R2", "p")), 
+  stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "bottom", small.p = TRUE,
                size = 3) + 
   labs(x = "Temperature [°C]",
-       y = "Sshannon's diversity index") +
+       y = "Shannon's diversity index") +
   theme(axis.title.x = element_text(hjust = 0), 
         legend.position = "none",
         axis.title=element_text(size=14,face="bold"),
@@ -889,49 +891,76 @@ The approach to checking whether geographical position impacts the microbial com
 ```{r beta-spatial}
 # data with only the coordinates known
 data_coo <- metadata %>% 
-      dplyr::select("sample_season", "X","Y") %>% 
-      na.omit() 
+  dplyr::select("sample_season", "X","Y") %>% 
+  na.omit() 
 
-gg <- data_coo %>% 
-      st_as_sf(., coords = c("X", "Y"), crs = 31253) %>% 
-      st_set_crs(31253) %>% 
-      st_transform(4326) %>% 
-      st_coordinates() %>%
-      as.data.frame() %>%
-      distm(., fun = distHaversine) %>%
-      as.dist(.) %>% as.vector()
-
-aa <- asv_table[, colnames(asv_table) %in% data_coo$sample_season] %>%  
-      t() %>% 
-      vegdist(., method = "bray") %>%
-      as.vector()
+data_coo_spring <- data_coo %>% 
+  dplyr::filter(grepl("spring", sample_season))
+data_coo_fall <-  data_coo %>% 
+  dplyr::filter(grepl("fall", sample_season)) 
 
 
-matr <- data.frame(gg, aa)
+gg_spring <- data_coo_spring %>% 
+  st_as_sf(., coords = c("X", "Y"), crs = 31253) %>% 
+  st_set_crs(31253) %>% 
+  st_transform(4326) %>% 
+  st_coordinates() %>%
+  as.data.frame() %>%
+  distm(., fun = distHaversine) %>%
+  as.dist(.) %>% as.vector()
+
+gg_fall <- data_coo_fall %>% 
+  st_as_sf(., coords = c("X", "Y"), crs = 31253) %>% 
+  st_set_crs(31253) %>% 
+  st_transform(4326) %>% 
+  st_coordinates() %>%
+  as.data.frame() %>%
+  distm(., fun = distHaversine) %>%
+  as.dist(.) %>% as.vector()
+
+aa_spring <- asv_table[, colnames(asv_table) %in% data_coo_spring$sample_season] %>%  
+  t() %>% 
+  vegdist(., method = "bray") %>%
+  as.vector()
+aa_fall <- asv_table[, colnames(asv_table) %in% data_coo_fall$sample_season] %>%  
+  t() %>% 
+  vegdist(., method = "bray") %>%
+  as.vector()
+
+
+matr_spring <- data.frame(gg_spring, aa_spring) %>% 
+  rename("gg" = "gg_spring", "aa" = "aa_spring") %>% 
+  mutate(sample_season = "spring")
+matr_fall <- data.frame(gg_fall, aa_fall) %>% 
+  rename("gg" = "gg_fall", "aa" = "aa_fall") %>% 
+  mutate(sample_season = "fall")
+
+matr <- rbind(matr_spring, matr_fall)
 
 ggplot(matr, aes(y = gg, x = aa)) + 
   geom_point(size = 3, alpha = 0.9, color="black", 
              shape = 21, fill= "violet",size = 5 ) +
   geom_smooth(method = "lm", colour = "black", alpha = 0.2) +
-# add correlation info  
+  # add correlation info  
   ggpubr::stat_cor(method = "spearman",  
                    label.y.npc="top", 
                    label.x.npc = "left",
                    color="black", size=4) +
-# edit visualization  
-  labs(x = "Community dissimilarity", 
+ facet_wrap(~sample_season) +  
+  
+  # edit visualization  
+  labs(x = "Microbial community dissimilarity", 
        y = "Physical Separation (km)") + 
-  theme( axis.text.x = element_text(face = "bold",
-                                    colour = "black", size = 12), 
+  theme(strip.text = element_text(size = 14), 
+        axis.text.x = element_text(face = "bold",
+                                    colour = "black", size = 10), 
          axis.text.y = element_text(face = "bold", 
                                     size = 11, colour = "black"), 
          axis.title = element_text(face = "bold", 
-                                  size = 14, colour = "black")) +
-# to turn y scale to kms
+                                   size = 14, colour = "black")) +
+  # to turn y scale to kms
   scale_y_continuous(breaks = seq(0, 30000, by = 5000),
                      labels = function(x) x / 1000) 
-
-
 
 ```
 
