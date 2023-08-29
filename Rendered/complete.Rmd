@@ -44,7 +44,7 @@ library(MASS)
 library(ggfortify)
 library(ggrepel)
 library(knitr)
-
+library(compositions)
  
 # coordianate plotting
 library(mapview)     
@@ -285,19 +285,18 @@ cbind( metadata, ens ) %>%
   na.omit() %>% 
 # plot
   ggplot(aes(x=Temp, y=ens)) + 
-  geom_point(shape=21, size = 3, fill = "violet", alpha = 0.9, stroke = 0.5) + 
+  geom_point(shape=21, size = 4, fill = "violet", alpha = 0.9, stroke = 0.5) + 
   geom_smooth(method = "lm", se= FALSE, color = "black") +
-  facet_wrap(~ Geol_beb, scales = "free_y", ncol = 2) + 
+  facet_wrap(~ Geol_beb, scales = "free_y", ncol = 3) + 
   stat_poly_eq(use_label(c( "adj.R2", "p")), 
                label.y = "bottom", small.p = TRUE,
-               size = 3) + 
+               size = 5) + 
   labs(x = "Temperature [°C]",
        y = "Shannon's diversity index") +
-  theme(axis.title.x = element_text(hjust = 0), 
-        legend.position = "none",
+  theme(legend.position = "none",
         axis.title=element_text(size=14,face="bold"),
         axis.text.y = element_text(size=10,face="bold"),
-        axis.text.x = element_text(angle = 90),
+        axis.text.x = element_text(size=10,face="bold"),
         strip.text = element_text(size = 12))
 
 ```
@@ -430,7 +429,7 @@ asv_table %>%
         legend.text = element_text(size = 6),      # Adjust the text size
         legend.title = element_text(size = 6),
         legend.key.size = unit(0.4, "cm"),
-        axis.title=element_text(size=14,face="bold"),
+        axis.title = element_text(size=14,face="bold"),
         axis.text.y = element_text(size=10,face="bold"),
         axis.text.x = element_text(angle = 90, face = "bold")) + 
   labs(x = "Temperature categories",
@@ -991,11 +990,13 @@ anova(disp_aq) #no sign. differences in dispersion
 
 
 # now test actual ordination
-permanova_aq <- adonis2(t( asv_aggregated[,which(colnames(asv_aggregated) %in% rownames(data_aq))] ) ~ 
+permanova_aq <- adonis2(t( asv_aggregated[,which(colnames(asv_aggregated) 
+                                                 %in% rownames(data_aq))] ) ~ 
                         data_aq$Geol_beb, 
+                        
                          method = "bray" , 
                         permutations = 999)
-permanova # not sign
+permanova_aq # not sign
 
 
 ```
@@ -1013,7 +1014,9 @@ df_alpha <- metadata %>%
   dplyr::select(where(is.numeric)) %>% 
   dplyr::select(-c("NH4", # many NAs
             "X", "Y",     # coordinates
-            "Extraction_depth", "Watercolumn", "GW_Table")) %>% 
+            "Extraction_depth", "Watercolumn", "GW_Table", "Well_depth",
+            "Temp" # bacause we include it through the temp categories
+            )) %>% 
   na.omit() %>% 
   scale(center = T, scale = T) %>% 
   as.data.frame()
@@ -1032,8 +1035,12 @@ biplot(pca_env)
 Both the fall and spring measurement of the 6-12 groundwater well jump out.
 Since they are outliers in both campaigns, we are inclined to believe it is not a sampling error.
 However, it is not easy to immediately see why this location would have such a heightened DOC.
+It might be better to leave this location out.
 
 ```{r pca-plot}
+
+pca_env <- prcomp(df_alpha[!rownames(df_alpha) %in% c("6-12_spring", 
+                                                      "6-12_fall"),], scale = FALSE)
 
 ggplot2::autoplot(pca_env, 
          
@@ -1041,6 +1048,8 @@ ggplot2::autoplot(pca_env,
            (
            df_alpha %>% 
            rownames_to_column("sample_season") %>% 
+           dplyr::filter(!sample_season %in% c("6-12_spring", 
+                                                      "6-12_fall")) %>%    
            left_join(., metadata[,c("category", "sample_season")], 
                      by = "sample_season") 
            ), 
@@ -1129,9 +1138,9 @@ plot_pca1 + plot_pca2 + plot_pca3
 
 The first PC mostly consist of variations in conductivity and mineral ions, as well as pH, which is why the cold samples fall away from the extremely hot ones along the x-axis.
 
-The second PC consists of DOC, DIC and oxygen levels, as well as, to a certain extent, the PO4 and NO3 concentrations.
+The second PC consists of TCC, ATP and oxygen levels.
 
-The third PC consists of the well depth variation.
+The third PC consists of the DIC and TCC variation.
 
 To see how the environmental variables and their communities vary, we lay both ordinations side by side:
 
@@ -1142,15 +1151,32 @@ nmds_plot2 <-  as.data.frame(nmds$points) %>%
   filter(cat !=  "NA") %>% 
   ggplot(aes(x=MDS1,y=MDS2) ) +
   geom_point(aes( color = cat),
-             size = 5, alpha = 0.2) +  
+             size = 5, alpha = 0.2) + 
+  theme_bw() +
   scale_color_manual(values=pal3) +
   stat_ellipse(aes(colour = cat), linewidth = 0.4) + 
-  theme(legend.position = "none") +
+  # add stress value
+  annotate(geom="text",x=0.8, y=0.7, 
+           label="stress =", color="black") +   
+  annotate(geom="text", x=1.1, y=0.7, 
+           label=round(nmds$stress,4), color="black") +
+  theme(legend.position = "none",
+        panel.grid = element_blank(), 
+        axis.title = element_text(size=10,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(size = 10, face = "bold")) +
+  #labs(color = "Temperature \ncategory") +
   geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
   geom_hline(yintercept = c(0), color = "grey70", linetype = 2) 
 
-pca_plot2 <- pca_plot + theme(legend.position = "none") + 
-  stat_ellipse(aes(colour = category), linewidth = 0.4) 
+pca_plot2 <- pca_plot + theme_bw() +
+  theme(legend.position = "right",
+        panel.grid = element_blank(), 
+        axis.title = element_text(size=10,face="bold"),
+        axis.text.y = element_text(size=10,face="bold"),
+        axis.text.x = element_text(size = 10, face = "bold")) + 
+  stat_ellipse(aes(colour = category), linewidth = 0.4)  +
+  labs(color = "Temperature \ncategory")
 nmds_plot2 + pca_plot2
 ```
 
