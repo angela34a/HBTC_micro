@@ -1,0 +1,20 @@
+spring_data_additional %>% 
+  dplyr::select("ens", "int_ATP", "TCC",  
+                "hts_GWWP",
+                "hts_EWS", 
+                "hts_UB",
+                "hts_kanal",
+                "hts_FW", 
+                "hts_Altlast",
+                "hts_OGFliess", 
+                "hts_OGSteh", 
+                "hts_Versie", 
+                "hts_No_UHI", 
+                "hts_UHI",
+                "hts_count",
+                "wastew_beb",
+                "Redox_beb",
+                "OF_beb"    ) %>% 
+  pivot_longer(cols = -c("ens", "int_ATP", "TCC") ,
+               names_to = "heat_sources",
+               values_to = "values")
