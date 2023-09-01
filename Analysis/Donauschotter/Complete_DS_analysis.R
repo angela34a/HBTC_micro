@@ -107,6 +107,7 @@ p4 + p5
 
 # ens vs metals ####
 spring_data_additional %>% 
+  dplyr::filter( Temp > 10  &  Temp < 18 ) %>% 
   dplyr::select("ens", "Al", "Cr", "Fe_57", "Ni", "Cu", "Zn", 
                 "As", "Ag", "Cd", "Hg", "Pb", "Mean_CO2", "Mean_CH4") %>% 
   na.omit() %>% 
@@ -133,6 +134,7 @@ ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
 
 
 spring_data_additional %>% 
+  dplyr::filter( Temp > 10  &  Temp < 18 ) %>% 
   dplyr::select("ens", "Ni", "Ag", "Mean_CH4") %>% 
   na.omit() %>% 
   pivot_longer(cols= -ens, values_to = "values", 
@@ -153,6 +155,62 @@ spring_data_additional %>%
         axis.title = element_text(size=10),
         axis.text.y = element_text(size=10),
         axis.text.x = element_text(angle = 90)) 
+
+
+# ens against all ####
+
+spring_data_additional %>% 
+  dplyr::select("ens", "Al", "Cr", "Fe_57", "Ni", "Cu", "Zn", 
+                "As", "Ag", "Cd", "Hg", "Pb", "Mean_CO2", "Mean_CH4",
+                "Temp", "Cond", "O2", "pH", "int_ATP", "DIC", "DOC", "NO3", 
+                 "PO4", "SO4" ) %>% 
+  na.omit() %>% 
+  scale(center = T, scale = T) %>% 
+  as.data.frame() -> df_spring
+
+
+# remove the highly correlated ones
+cor_matrix <- cor(df_spring)
+highly_correlated <- caret::findCorrelation(cor_matrix, cutoff = 0.9)
+# no variables with coeff > 0.9
+
+# run individual regressions for each variable
+varlist <- names(df_spring)[- 1] 
+# remove ens, the independant var
+models <- lapply(varlist, function(x) {
+  form <- formula(paste("ens ~", x))
+  lm(form, data=df_spring)
+})
+# tidy up the results
+lapply(models, function(x) tidy(x)) %>% bind_rows() -> ind_models
+ind_models %>% filter(term != "(Intercept)") %>% filter(p.value<0.05)
+
+
+
+
+spring_data_additional %>% 
+  dplyr::select("ens", "Ag", "Mean_CO2", "pH", "int_ATP") %>% 
+  na.omit() %>% 
+  pivot_longer(cols= -ens, values_to = "values", 
+               names_to = "vars") %>% 
+  #plot  
+  
+  ggplot(aes(y=ens, x=values)) + 
+  geom_point(shape=21, size = 3, fill = "violet", 
+             alpha = 0.9, stroke = 0.6) + 
+  geom_smooth(method = "lm", se= FALSE, color = "black") + 
+  ggpmisc::stat_poly_eq(use_label(c("adj.R2", "p")), 
+                        small.p = TRUE,
+                        label.y = "bottom", size = 3.4) + 
+  facet_wrap(~vars, scales = "free") + 
+  labs(y = "Shannon diversity index", 
+       x ="Environmental measurements") +
+  theme(legend.position = "none",
+        axis.title = element_text(size=10),
+        axis.text.y = element_text(size=10),
+        axis.text.x = element_text(angle = 90)) 
+
+
 
 
 # ens - mlr ####
