@@ -153,7 +153,10 @@ p1_en <- cbind(as.data.frame(ens), as.factor(metadata$category)) %>%
   labs(x = "Temperature category",
        y = "Shannon diversity index",
        title = "Diversity by temp. category") +
-  scale_x_discrete(limits = name_vector)  
+  scale_x_discrete(limits = name_vector, 
+                    labels = c("ref_cat", "<10",   "10-12",
+                              "12-14", "14-16", "16-18", 
+                              "18-20",    ">20"  ))  
 
 
 ```
@@ -729,7 +732,14 @@ This way the cold and warm extreme is on either side of the 13-16 spectrum.
 
 ```{r anova-13-15}
 # add >13-15< categorization
-data_for_temp %>% dplyr::select(!c("n", "samples")) %>% 
+data_for_temp %>% 
+  
+# try relative abundances?
+  #group_by(samples, Order) %>% 
+  #mutate(rel_abund = abund/sum(abund)) %>% 
+  #ungroup() %>% 
+  
+  dplyr::select(!c("n", "samples")) %>% 
   mutate(temp_cat = case_when(Temp <13 ~ "cold",
                               Temp >15 ~ "hot", 
                               Temp >= 13 & Temp <= 15 ~ "mid")) -> data_for_group
@@ -747,17 +757,25 @@ data_for_temp %>% dplyr::select(!c("n", "samples")) %>%
 #  this dataset now contains only the orders which exhibit sign diff.
  
 data_for_group [which(data_for_group$Order %in% corr_orders_group$Order),
-               c("Order", "abund",  "temp_cat")] %>% 
+               c("Order", 
+                 "abund", 
+                 #"rel_abund",
+                 "temp_cat")] %>% 
+dplyr::filter(Order %in%  c("Candidatus Roizmanbacteria", "Desulfobacterales") )  %>% 
+  
 # plot 
 ggplot(aes(x = temp_cat , y = abund)) +
   geom_jitter(width = 0.2, size = 3, shape=21, aes(fill = temp_cat) ) +
   geom_boxplot( alpha=0.5, outlier.shape = NA, aes(fill = temp_cat)) + 
   facet_wrap(~ Order, scales = "free_y") +
-  scale_x_discrete(limits = c("cold", "mid", "hot")) +
   scale_fill_manual(values = c("lightblue", "#d7301f", "#fdbb84")) +
-  theme(legend.position = "none") + 
+  theme(legend.position = "none",
+        axis.title = element_text(face = "bold", size = 14),
+        strip.text = element_text( size = 10)) + 
+  scale_x_discrete( limits = c("cold", "mid", "hot"), 
+                    labels = c("<13", "13-15", ">15")) +
   labs(y = "Abundances (absolute 16S counts)",
-       x = "Temperature [°C]")
+       x = "Temperature [°C]") 
 
 ```
 
@@ -779,6 +797,27 @@ data_for_group %>%
 ```
 
 Desulfobacterales do indeed have a significantly different abundance between the cold and hot samples, as do the Candidatus Roizmanbacteria and Microtrichales.
+
+However, these two do not seem normal distrubution, try the Kruskal-Wallis.
+
+```{r}
+# roizman
+data_for_group %>% 
+  dplyr::filter(Order == "Candidatus Roizmanbacteria" ) %>% 
+  dplyr::select(!c("Temp", "Order") ) %>%
+  mutate(abund = as.numeric(abund),
+         temp_cat = as.factor(temp_cat)) %>% 
+  kruskal.test(abund ~ temp_cat, data = .)
+
+#desulf
+data_for_group %>% 
+  dplyr::filter(Order == "Desulfobacterales" ) %>% 
+  dplyr::select(!c("Temp", "Order") ) %>%
+  mutate(abund = as.numeric(abund),
+         temp_cat = as.factor(temp_cat)) %>% 
+  kruskal.test(abund ~ temp_cat, data = .)
+
+```
 
 # Beta diversity
 
@@ -944,7 +983,9 @@ ggplot(matr, aes(y = gg, x = aa)) +
   ggpubr::stat_cor(method = "spearman",  
                    label.y.npc="top", 
                    label.x.npc = "left",
-                   color="black", size=4) +
+                   color="black", size=4,
+                  aes(label = paste(..rr.label.., ..p.label.., 
+                                    sep = "~`,`~"))) +
  facet_wrap(~sample_season) +  
   
   # edit visualization  

@@ -256,4 +256,42 @@ asv_table %>%
 
 # cluster ####
 
+library(microViz)
+library(phyloseq)
+phiseq <- phyloseq(
+  otu_table(asv_table, taxa_are_rows = TRUE),
+  tax_table(as.matrix(tax_table) ),
+  sample_data(metadata %>% column_to_rownames("sample_season"))
+)
+  
+
+
+phiseq %>%  
+  tax_fix(unknowns = c("", "uncultured")) %>% 
+  subset_taxa(., !Class  %in% c("Unclassified Kingdom", "Bacteria Kingdom") ) %>%
+  
+  comp_barplot(
+    tax_level = "Class", n_taxa = 15, other_name = "Other",
+    #taxon_renamer = function(x) stringr::str_remove(x, " [ae]t rel."),
+    #palette = distinct_palette(n = 15, add = "grey90"),
+    palette = c25,
+    merge_other = FALSE, bar_outline_colour = "darkgrey"
+  ) +
+  coord_flip() +
+  facet_wrap("category", nrow = 2, scales = "free",
+             labeller = labeller2 ) +
+  labs(x = NULL, y = NULL) +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+labeller2 <- as_labeller(c(
+  
+  "ref_cat" = "reference", 
+  "<10" = "<10", 
+  "10-12" = "10-12",
+  "12-14" = "12-14", 
+  "14-16" = "14-16", 
+  "16-18" = "16-18", 
+  "18-20" = "18-20",    
+  "20<" = "<20" 
+))
 
