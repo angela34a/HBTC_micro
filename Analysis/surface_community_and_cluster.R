@@ -70,6 +70,39 @@ asv_taxonomy <- asv_taxonomy %>% dplyr::select("name", "lca_tax_slv") %>%
 ## so make that an NA as well:
 asv_taxonomy[asv_taxonomy == ''] <- NA
 
+# and the clean tax table
+tax_table <- read.csv("C:/Users/Angela Cukusic/Desktop/DS_analysis/data/clean_data/tax_no_cont.csv",  row.names = 1)
+# some names need to be changed by the GTDB names
+
+tax_table <- tax_table %>%
+  mutate(Class = case_when(
+# class Vampiribrionia    
+    Class == "Vampirivibrionia" ~ "Vampirovibrionia",
+# Brocadiia
+    Class == "Brocadiae" ~ "Brocadiia",
+# Actinomycetes
+    Class == "Actinobacteria" ~ "Actinomycetia",
+# Paceibacteria
+    Class == "Parcubacteria" ~ "Paceibacteria",
+    TRUE ~ Class  ))
+
+
+asv_taxonomy <- asv_taxonomy %>%
+  mutate(Class = case_when(
+    # class Vampiribrionia    
+    Class == "Vampirivibrionia" ~ "Vampirovibrionia",
+    # Brocadiia
+    Class == "Brocadiae" ~ "Brocadiia",
+    # Actinomycetes
+    Class == "Actinobacteria" ~ "Actinomycetia",
+    # Paceibacteria
+    Class == "Parcubacteria" ~ "Paceibacteria",
+    TRUE ~ Class  ))
+
+
+
+
+
 
 asv_table_surf %>% 
   mutate_if(is.integer, as.numeric) %>% 
@@ -178,12 +211,12 @@ surf_no_rep %>%
   geom_bar(stat = "identity", color = "black") +
   scale_fill_manual(values=c24) +
   theme(panel.grid = element_blank(), legend.position="right",
-        legend.text = element_text(size = 10),      # Adjust the text size
-        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),      # Adjust the text size
+        legend.title = element_text(size = 8,  face = "bold"),
         legend.key.size = unit(0.4, "cm"),
-        axis.title = element_text(size=11,face="bold"),
-        axis.text.y = element_text(size=10 ),
-        axis.text.x = element_text(angle = 90, size = 10, face = "bold")) + 
+        axis.title = element_text(size=8, face="bold"),
+        axis.text.y = element_text(size=8),
+        axis.text.x = element_text(angle = 90, size = 8, face = "bold")) + 
   labs(x = NULL,
        y = "Relative abundance", 
        fill = "Class") +
@@ -239,11 +272,11 @@ asv_table %>%
   scale_size_continuous(limits = c(0.001, 0.4), range = c(1,7)) + 
   labs( x= "", y = "", size = "Relative Abundance", fill = "")  + 
   theme(legend.key=element_blank(), 
-        axis.text.x = element_text(colour = "black", size = 10, face = "bold", 
+        axis.text.x = element_text(colour = "black", size = 8, face = "bold", 
                                    angle = 90, vjust = 0.3, hjust = 1),
-        axis.text.y = element_text(colour = "black", face = "bold", size = 10), 
-        legend.text = element_text(size = 10, face ="bold", colour ="black"), 
-        legend.title = element_text(size = 10), 
+        axis.text.y = element_text(colour = "black", face = "bold", size = 8), 
+        legend.text = element_text(size = 7,  colour ="black"), 
+        legend.title = element_text(size = 8, face = "bold"), 
         legend.position = "right") +  
   scale_fill_manual(values = c25, guide = "none") +   
   scale_y_discrete(limits = rev(levels(data$class))) +
@@ -251,6 +284,11 @@ asv_table %>%
                    labels = c("ref_cat", "<10",   "10-12",
                               "12-14", "14-16", "16-18", 
                               "18-20",    ">20"  )) -> plot_gw
+
+
+plot_gw + plot_surface + plot_layout(guides = "collect")
+
+
 
 
 
