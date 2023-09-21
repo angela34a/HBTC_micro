@@ -94,8 +94,11 @@ p_atp <- spring_data_additional %>%
         axis.text.y = element_text(size=10,face="bold"),
         axis.text.x = element_text(angle = 90)) +
   labs(x = "Temperature category",
-       y = "log(ATP) [pM/L]") +
-  scale_x_discrete(limits = name_vector)  +
+       y = "ATP [pM/L]") +
+  scale_x_discrete(limits = name_vector, 
+                   labels = c("ref_cat", "<10",   "10-12",
+                              "12-14", "14-16", "16-18", 
+                              "18-20",    ">20"  ))  +
   scale_y_log10()
 
 
@@ -125,8 +128,11 @@ p_tcc <- spring_data_additional %>%
         axis.text.y = element_text(size=10,face="bold"),
         axis.text.x = element_text(angle = 90)) +
   labs(x = "Temperature category",
-       y = "log(Total cell counts) [cells/mL]") +
-  scale_x_discrete(limits = name_vector) +
+       y = "Total cell counts [cells/mL]") +
+  scale_x_discrete(limits = name_vector, 
+                   labels = c("ref_cat", "<10",   "10-12",
+                              "12-14", "14-16", "16-18", 
+                              "18-20",    ">20"  )) +
   scale_y_log10()
 
 

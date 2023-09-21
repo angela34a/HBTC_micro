@@ -266,6 +266,7 @@ metadata %>%
    cor_test("Temp","value", method = "spearman") %>% 
    ungroup() %>% 
    dplyr::filter(p<0.05) %>% 
+   dplyr::select(!c("var1", "var2", "method", "statistic")) %>% 
    mutate(signif = gtools::stars.pval(p))-> correlation_data
  
  # impact of temperature on sulfate ions!

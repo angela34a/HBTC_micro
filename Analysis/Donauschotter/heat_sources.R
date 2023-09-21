@@ -36,7 +36,7 @@ spring_data_additional %>%
 #    Effect = ifelse(Effect == 1, "effect present", "no effect")) 
   
   
-  mutate(int_ATP = log(int_ATP), TCC = log(TCC)) %>% 
+  #mutate(int_ATP = log(int_ATP), TCC = log(TCC)) %>% 
   na.omit() %>% 
   pivot_longer(cols = -c("ens", "int_ATP", "TCC") ,
                names_to = "heat_sources",
@@ -63,8 +63,8 @@ spring_data_additional %>%
 my_labeller <- as_labeller(
   c(
   ens = "Shannon~diversity~index",
-  int_ATP = "log(ATP) ~  (pM/L)",
-  TCC = "log(TCC) ~ (cells/mL)", 
+  int_ATP = "ATP ~  (pM/L)",
+  TCC = "TCC ~ (cells/mL)", 
   #"hts_GWWP" = "Geothermal~energy~use",
   #"hts_EWS", 
   "hts_UB" = "Subsurface~infrastructure",
@@ -135,3 +135,5 @@ data_for_test %>%
   ungroup() %>% 
   as.data.frame() %>% 
   dplyr::filter(p <0.05)
+
+
